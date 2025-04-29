@@ -1,0 +1,8 @@
+*.d
+*.swp
+rest-test/recent
+build_info*.*
+*.swig
+rest-test/debug/*
+rest-test/include/*
+
