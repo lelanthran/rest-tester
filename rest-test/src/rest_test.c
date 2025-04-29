@@ -4,9 +4,9 @@
 /* ***************************************************************************
  *
  * # My problems with Hurl
- * 1. Horrible syntax - no delineation between requests and response, between
+ * 1. Horrible syntax - no delineation between requests and response, and between
  *    requests. No test metadata (names would be nice). This makes the input and the
- *    output slow to visually skim for specific things. A test on a header field  in
+ *    output slow to visually skim for specific things. A test on a header field in
  *    the response looks exactly the same as sending that header in the request.
  * 2. No persistence between runs, which makes storing state between different Hurl
  *    scripts impossible. Had to use shell-script chicanary to achieve this by
@@ -16,21 +16,25 @@
  *    necessary to *generate* "Hurl" files that get later run/concatenated.
  * 4. No easy way to insert results from a shell. More caller-shell-script abuse to
  *    generate Hurl files and concatenate them with other Hurl files.
- * 4. Documentation is, by necessity, a tutorial. The input format is so logically
+ * 5. Documentation is, by necessity, a tutorial. The input format is so logically
  *    inconsistent that even ChatGPT makes syntax errors all the time. A simpler
  *    syntax would result in nothing more than a single-page reference being needed.
- * 5. Having it in Rust makes it hard to script from Python (or anything else; for
+ *    This is preferable to me than the current Hurl tutorial which is ambiguous.
+ *    Possibly the manpage (which is not available online at the Hurl site) is a
+ *    better reference but they don't make it available on the site.
+ * 6. Having it in Rust makes it hard to script from Python (or anything else; for
  *    now I just wanted Python). It should have been a library, which is used by a
  *    very thin CLI wrapper.
- * 6. Does not report number of failures to the caller. Only options are an error
- *    code being returned, or printing of overly verbose statistics.
- * 7. No site-configuration and project-configuration possible (no $PWD/hurlrc,
- *    ~/.hurlrc, /etc/hurlrc, etc).
+ * 7. Does not report number of failures to the caller. Only options are an error
+ *    code being returned, or printing of overly verbose statistics **per test!**
+ * 8. No site-configuration and project-configuration possible (no $PWD/hurlrc,
+ *    ~/.hurlrc, /etc/hurlrc, etc). Shell-script wrappers needed for each project
+ *    because cannot set the project/user/site options.
  *
  * # Proposal
  * 1. Simpler syntax: All lines begin with a period followed by a symbol. This is a
  *    directive to the parser. Only body content is excepted and uses block markers.
- * 2. Two modes: request-building and response-checking.
+ * 2. Three modes: global-mode, request-building and response-checking.
  * 3. When in request-building non-directive lines are added to the request. Content
  *    of these lines can have variable substitution (including environment
  *    variables).
@@ -41,10 +45,12 @@
  * 6. Cookies automatically stored, response/request headers automatically stored.
  *    This allows a session-id to be sent in the header and subsequently used in
  *    future requests during the same session.
- * 7. Body is indicated using multiline strings ``` on a line by itself to both
- *    start and stop body. A flag can change this to whatever the user wants.
+ * 7. Body is indicated using multiline strings ``` on a line by itself to delineate
+ *    body. A flag can change this to whatever the user wants.
  * 8. Hurl uses xpath/jsonpath to locate nodes. Need something similar. Maybe just
- *    use an XML and JSON library?
+ *    use an XML and JSON library? A directive to parse JSON and to parse XML (and
+ *    fail if not JSON or not XML) combined with a tree/path specification could
+ *    work (not sure about JSON arrays, though).
  * 9. Symbol tables must be dynamically scoped - if FOO exists globally but the
  *    specific test sets FOO in the request or the response, then that is the FOO
  *    that will be used in that scope.
@@ -62,7 +68,7 @@
  * Handlerbars contain symbols. The value of these symbols are substituted into the
  * request as follows:
  * {{symbol}} => symbol itself is substituted
- * {{symbol(...)}} => a function is invoked with the specified parameters.
+ * {{symbol(...)}} => builtin function is invoked with the specified parameters.
  * Parameters must be literals or handlerbars themselves.
  *
  * Lines beginning with `.symbol` are directives. Directives can set variable
