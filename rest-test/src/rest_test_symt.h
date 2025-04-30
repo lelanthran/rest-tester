@@ -48,7 +48,7 @@ extern "C" {
    // specified table a recursive search of the ancestors is performed until a
    // matching symbol is found or there are no more parents.
    //
-   // Returns the value of the symbo if the symbol exists, or NULL if the symbol
+   // Returns the value of the symbol if the symbol exists, or NULL if the symbol
    // does not exist.
    const char *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol);
 
