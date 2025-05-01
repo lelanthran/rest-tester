@@ -7,8 +7,8 @@
 #include "ds_array.h"
 #include "ds_str.h"
 
-#include "rest_test.h"
 #include "rest_test_symt.h"
+#include "rest_test.h"
 
 /* ***************************************************************************
  *
@@ -173,14 +173,15 @@ struct assertion_t {
 
 // The test record.
 struct rest_test_t {
-   // Store a pointer to the parent so we can maintain scoping
-   rest_test_t *parent;
+   // Caller need not check for failure after every access
+   int lasterr;
 
    // Symbol table
    rest_test_symt_t  *st;
 
    // Identify the test
    char  *fname;
+   size_t line_no;
    char  *name;
 
    // The request and response data; note that all responses are stored in memory
@@ -206,17 +207,21 @@ do {\
 
 #define TOLOWER(s)   \
 for (size_t i=0; s[i]; i++) {\
-   s[i] = tolower(s[i]);\
+   s[i] = (unsigned char)tolower(s[i]);\
 }
 
 #define SET_FIELD(obj,field,value)  \
 do {\
    if (!obj || obj->lasterr)\
-      return obj;\
-   free (obj->field);\
-   if (!(obj->field = ds_str_dup (value)))\
+      return false;\
+   char *tmp = ds_str_dup (value);\
+   if (!tmp) {\
       obj->lasterr = -1;\
-   return obj;\
+      return false;\
+   }\
+   free (obj->field);\
+   obj->field = tmp;\
+   return true;\
 } while (0)
 
 
@@ -242,9 +247,23 @@ static void _header_del (const void *key, size_t keylen,
    struct header_t *h = header;
    const char *k = key;
    ds_hmap_t *hm = hmap;
+   (void)headerlen;
    header_del (&h);
    ds_hmap_remove (hm, k, keylen);
 }
+
+static void _header_print (const void *key, size_t keylen,
+                           void *header, size_t headerlen,
+                           void *fout)
+{
+   struct header_t *h = header;
+   const char *k = key;
+   FILE *f = fout;
+   (void)headerlen;
+   (void)keylen;
+   fprintf (f, "  [%s:%zu] [%s] [%s]\n", h->source, h->line_no, k, h->value);
+}
+
 
 static struct header_t *header_new (const char *source,
                                     size_t line_no,
@@ -260,19 +279,20 @@ static struct header_t *header_new (const char *source,
    if (!(ret->source = ds_str_dup (source)))
       CLEANUP ("[%s:%zu %s] OOM allocating source\n", source, line_no, line);
 
-   TOLOWER (copy);
-
    char *delim = strchr (copy, ':');
    if (!delim)
       CLEANUP ("[%s:%zu %s] Invalid header, missing `:`\n", source, line_no, line);
 
    *delim++ = 0;
+   ret->line_no = line_no;
    ret->name = ds_str_dup (copy);
    ret->value = ds_str_dup (delim);
    if (!ret->name || !ret->value)
       CLEANUP ("[%s:%zu %s] OOM copying header values", source, line_no, line);
 
    ds_str_trim (ret->name);
+   TOLOWER (ret->name);
+
    ds_str_trim (ret->value);
 
    error = false;
@@ -302,46 +322,50 @@ static void req_clear (struct req_t *req)
 
    ds_hmap_iterate (req->headers, _header_del, req->headers);
    ds_hmap_del (req->headers);
+   req->headers = NULL;
 
    memset (req, 0, sizeof *req);
 }
 
-static struct req_t *req_method (struct req_t *req, const char *method)
+static bool req_method (struct req_t *req, const char *method)
 {
    SET_FIELD (req, method, method);
 }
 
-static struct req_t *req_uri (struct req_t *req, const char *uri)
+static bool req_uri (struct req_t *req, const char *uri)
 {
    SET_FIELD (req, uri, uri);
 }
 
-static struct req_t *req_http_version (struct req_t *req, const char *http_version)
+static bool req_http_version (struct req_t *req, const char *http_version)
 {
    SET_FIELD (req, http_version, http_version);
 }
 
-static struct req_t *req_body (struct req_t *req, const char *body)
+static bool req_body (struct req_t *req, const char *body)
 {
    SET_FIELD (req, body, body);
 }
 
-static struct req_t *req_body_append (struct req_t *req, const char *body)
+static bool req_body_append (struct req_t *req, const char *body)
 {
    if (!req || req->lasterr)
-      return req;
+      return false;
 
-   char *tmp = realloc (req->body, strlen (req->body) + strlen (body) + 1);
+   size_t param_len = strlen (body) + 1;
+   size_t body_len = req->body ? strlen (req->body) + 1 : 0;
+   char *tmp = malloc (param_len + body_len);
    if (!tmp) {
       req->lasterr = -1;
-      return req;
+      return false;
    }
+   tmp[0] = 0;
 
-   strcpy (tmp, req->body);
+   strcpy (tmp, req->body ? req->body : "");
    strcat (tmp, body);
    free (req->body);
    req->body = tmp;
-   return req;
+   return true;
 }
 
 
@@ -361,46 +385,50 @@ static void rsp_clear (struct rsp_t *rsp)
 
    ds_hmap_iterate (rsp->headers, _header_del, rsp->headers);
    ds_hmap_del (rsp->headers);
+   rsp->headers = NULL;
 
    memset (rsp, 0, sizeof *rsp);
 }
 
-static struct rsp_t *rsp_http_version (struct rsp_t *rsp, const char *http_version)
+static bool rsp_http_version (struct rsp_t *rsp, const char *http_version)
 {
    SET_FIELD (rsp, http_version, http_version);
 }
 
-static struct rsp_t *rsp_status_code (struct rsp_t *rsp, const char *status_code)
+static bool rsp_status_code (struct rsp_t *rsp, const char *status_code)
 {
    SET_FIELD (rsp, status_code, status_code);
 }
 
-static struct rsp_t *rsp_reason (struct rsp_t *rsp, const char *reason)
+static bool rsp_reason (struct rsp_t *rsp, const char *reason)
 {
    SET_FIELD (rsp, reason, reason);
 }
 
-static struct rsp_t *rsp_body (struct rsp_t *rsp, const char *body)
+static bool rsp_body (struct rsp_t *rsp, const char *body)
 {
    SET_FIELD (rsp, body, body);
 }
 
-static struct rsp_t *rsp_body_append (struct rsp_t *rsp, const char *body)
+static bool rsp_body_append (struct rsp_t *rsp, const char *body)
 {
    if (!rsp || rsp->lasterr)
-      return rsp;
+      return false;
 
-   char *tmp = realloc (rsp->body, strlen (rsp->body) + strlen (body) + 1);
+   size_t param_len = strlen (body) + 1;
+   size_t body_len = rsp->body ? strlen (rsp->body) + 1 : 0;
+   char *tmp = malloc (param_len + body_len);
    if (!tmp) {
       rsp->lasterr = -1;
-      return rsp;
+      return false;
    }
+   *tmp = 0;
 
-   strcpy (tmp, rsp->body);
+   strcpy (tmp, rsp->body ? rsp->body : "");
    strcat (tmp, body);
    free (rsp->body);
    rsp->body = tmp;
-   return rsp;
+   return true;
 }
 
 
@@ -420,25 +448,27 @@ static struct rsp_t *rsp_body_append (struct rsp_t *rsp, const char *body)
  * Public functions.
  */
 
+#define TEST_RT_STRING(rt)  \
+if (!rt || rt->lasterr) return ""
+
+#define TEST_RT_BOOL(rt)  \
+if (!rt || rt->lasterr) return false
+
 rest_test_t *rest_test_new (const char *name,
                             const char *fname,
                             size_t line_no,
-                            rest_test_t *parent)
+                            rest_test_symt_t *parent)
 {
    bool error = true;
-   struct rest_test_symt_t *parent_symt = NULL;
 
    rest_test_t *ret = calloc (1, sizeof *ret);
    if (!ret)
       CLEANUP ("OOM error allocating rest_test_t structure\n");
 
-   if (parent) {
-      parent_symt = parent->st;
-   }
-
-   ret->st = rest_test_symt_new (name, parent_symt, 32);
+   ret->st = rest_test_symt_new (name, parent, 32);
    ret->name = ds_str_dup (name);
    ret->fname = ds_str_dup (fname);
+   ret->line_no = line_no;
    ret->req.headers = ds_hmap_new (32);
    ret->rsp.headers = ds_hmap_new (32);
    ret->assertions = ds_array_new ();
@@ -466,13 +496,224 @@ void rest_test_del (rest_test_t **rt)
    rest_test_symt_del (&(*rt)->st);
    free ((*rt)->name);
    free ((*rt)->fname);
-   ds_hmap_iterate ((*rt)->req.headers, _header_del, (*rt)->req.headers);
-   ds_hmap_del ((*rt)->req.headers);
-   ds_hmap_iterate ((*rt)->rsp.headers, _header_del, (*rt)->rsp.headers);
-   ds_hmap_del ((*rt)->rsp.headers);
    // ds_array_iterate ((*rt)->assertions, _assertion_del, (*rt)->assertions);
    ds_array_del ((*rt)->assertions);
 
+   req_clear (&(*rt)->req);
+   rsp_clear (&(*rt)->rsp);
+
    free (*rt);
 }
+
+void rest_test_dump (rest_test_t *rt, FILE *fout)
+{
+   if (!fout)
+      fout = stdout;
+   if (!rt) {
+      fprintf (fout, "NULL test");
+      return;
+   }
+   fprintf (fout, "Source:                [%s:%zu]\n", rt->fname, rt->line_no);
+   fprintf (fout, "Test:                  [%s]\n", rt->name);
+   fprintf (fout, "Last error:            [%i]\n", rt->lasterr);
+   fprintf (fout, "Req->method:           [%s]\n", rt->req.method);
+   fprintf (fout, "Req->uri:              [%s]\n", rt->req.uri);
+   fprintf (fout, "Req->http_version:     [%s]\n", rt->req.http_version);
+   fprintf (fout, "Req->body:             [%s]\n", rt->req.body);
+   ds_hmap_iterate (rt->req.headers, _header_print, fout);
+   fprintf (fout, "Rsp->http_version:     [%s]\n", rt->rsp.http_version);
+   fprintf (fout, "Rsp->status_code:      [%s]\n", rt->rsp.status_code);
+   fprintf (fout, "Rsp->reason:           [%s]\n", rt->rsp.reason);
+   fprintf (fout, "Rsp->body:             [%s]\n", rt->rsp.body);
+   ds_hmap_iterate (rt->rsp.headers, _header_print, fout);
+}
+
+// Get the last error value
+int rest_test_lasterr (rest_test_t *rt)
+{
+   return rt ? rt->lasterr : -2;
+}
+
+
+// Set all the fields in the request
+bool rest_test_req_set_method (rest_test_t *rt, const char *method)
+{
+   TEST_RT_BOOL(rt);
+   return req_method (&rt->req, method);
+}
+
+bool rest_test_req_set_uri (rest_test_t *rt, const char *uri)
+{
+   TEST_RT_BOOL(rt);
+   return req_uri (&rt->req, uri);
+}
+
+bool rest_test_req_set_http_version (rest_test_t *rt, const char *http_version)
+{
+   TEST_RT_BOOL(rt);
+   return req_http_version (&rt->req, http_version);
+}
+
+bool rest_test_req_set_body (rest_test_t *rt, const char *body)
+{
+   TEST_RT_BOOL(rt);
+   if (!(req_body (&rt->req, body))) {
+      rt->lasterr = -7;
+      return false;
+   }
+   return true;
+}
+
+bool rest_test_req_append_body (rest_test_t *rt, const char *body)
+{
+   TEST_RT_BOOL(rt);
+   if (!(req_body_append (&rt->req, body))) {
+      rt->lasterr = -8;
+      return false;
+   }
+
+   return true;
+}
+
+bool rest_test_req_set_header (rest_test_t *rt,
+                               const char *source, size_t line_no,
+                               const char *value)
+{
+   TEST_RT_BOOL(rt);
+   struct header_t *h = header_new (source, line_no, value);
+   if (!h) {
+      rt->lasterr = -5;
+      return false;
+   }
+
+   return ds_hmap_set_str_ptr (rt->req.headers, h->name, h, sizeof *h);
+}
+
+// Get all the fields in the request
+const char *rest_test_req_method (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->req.method;
+}
+
+const char *rest_test_req_uri (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->req.uri;
+}
+
+const char *rest_test_req_http_version (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->req.http_version;
+}
+
+const char *rest_test_req_body (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->req.body;
+}
+
+const char *rest_test_req_header (rest_test_t *rt, const char *header)
+{
+   TEST_RT_STRING(rt);
+   char *value = NULL;
+   if (!(ds_hmap_get_str_str(rt->req.headers, header, &value))) {
+      rt->lasterr = -4;
+      return "";
+   }
+   return value;
+}
+
+
+// Set all the fields in the response
+bool rest_test_rsp_set_http_version (rest_test_t *rt, const char *http_version)
+{
+   TEST_RT_BOOL(rt);
+   return rsp_http_version (&rt->rsp, http_version);
+}
+
+bool rest_test_rsp_set_status_code (rest_test_t *rt, const char *status_code)
+{
+   TEST_RT_BOOL(rt);
+   return rsp_status_code (&rt->rsp, status_code);
+}
+
+bool rest_test_rsp_set_reason (rest_test_t *rt, const char *reason)
+{
+   TEST_RT_BOOL(rt);
+   return rsp_reason (&rt->rsp, reason);
+}
+
+bool rest_test_rsp_set_body (rest_test_t *rt, const char *body)
+{
+   TEST_RT_BOOL(rt);
+   if (!(rsp_body (&rt->rsp, body))) {
+      rt->lasterr = -9;
+      return false;
+   }
+   return true;
+}
+
+bool rest_test_rsp_append_body (rest_test_t *rt, const char *body)
+{
+   TEST_RT_BOOL(rt);
+   if (!(rsp_body_append (&rt->rsp, body))) {
+      rt->lasterr = -10;
+      return false;
+   }
+   return true;
+}
+
+bool rest_test_rsp_set_header (rest_test_t *rt,
+                               const char *source, size_t line_no,
+                               const char *value)
+{
+   TEST_RT_BOOL(rt);
+   struct header_t *h = header_new (source, line_no, value);
+   if (!h) {
+      rt->lasterr = -5;
+      return false;
+   }
+
+   return ds_hmap_set_str_ptr (rt->rsp.headers, h->name, h, sizeof *h);
+}
+
+// Get all the fields in the response
+const char *rest_test_rsp_http_version (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->rsp.http_version;
+}
+
+const char *rest_test_rsp_status_code (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->rsp.status_code;
+}
+
+const char *rest_test_rsp_reason (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->rsp.reason;
+}
+
+const char *rest_test_rsp_body (rest_test_t *rt)
+{
+   TEST_RT_STRING(rt);
+   return rt->rsp.body;
+}
+
+const char *rest_test_rsp_header (rest_test_t *rt, const char *header)
+{
+   TEST_RT_STRING(rt);
+   char *value = NULL;
+   if (!(ds_hmap_get_str_str(rt->rsp.headers, header, &value))) {
+      rt->lasterr = -4;
+      return "";
+   }
+   return value;
+}
+
+
 

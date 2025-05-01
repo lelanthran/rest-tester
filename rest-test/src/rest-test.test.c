@@ -68,11 +68,39 @@ cleanup:
 
 int test_rest_test (void)
 {
-   rest_test_t *rt = rest_test_new ("Test test", "in.rtest", 1, NULL);
-
+   int errcode = -1;
    printf ("testing rest_test\n");
+   rest_test_t *rt = rest_test_new ("Test test", "in.rtest", 1, NULL);
+   if (!rt) {
+      ERRORF ("Failed to allocate test structure\n");
+      goto cleanup;
+   }
 
+   rest_test_req_set_method (rt, "POST");
+   rest_test_req_set_http_version (rt, "HTTP/1.1");
+   rest_test_req_set_uri (rt, "/some/test/ur");
+   rest_test_req_set_header (rt, "in.rtest", 5, "X-Header-One: headeR-ONE-VAlue");
+   rest_test_req_set_header (rt, "in.rtest", 6, "X-Header-Two: headeR-TWO-VAlue");
+   rest_test_req_set_header (rt, "in.rtest", 7, "X-Header-Three: heaDER-THREe-value");
+   rest_test_req_set_body (rt, "A Body Line\n");
+   rest_test_req_append_body (rt, "Another Body Line\n");
+
+   rest_test_rsp_set_http_version (rt, "http/1.1");
+   rest_test_rsp_set_status_code (rt, "201");
+   rest_test_rsp_set_reason (rt, "Okay");
+   rest_test_rsp_set_body (rt, "A Response Line\n");
+   rest_test_rsp_append_body (rt, "Another Response Line\n");
+
+   rest_test_dump (rt, stdout);
+
+   errcode = rest_test_lasterr (rt);
+cleanup:
    rest_test_del (&rt);
+   return errcode;
+}
+
+int test_parser (void)
+{
    return 0;
 }
 
@@ -86,8 +114,10 @@ int main (int argc, char **argv)
    } test_funcs[] = {
       { "symt",      test_symt },
       { "rest_test", test_rest_test },
+      { "parser",    test_parser },
    };
 
+   printf ("%i\n", argc);
    size_t ntests = 0;
    for (int i=1; i<argc; i++) {
       for (size_t j=0; j<sizeof test_funcs/sizeof test_funcs[0]; j++) {
@@ -99,6 +129,17 @@ int main (int argc, char **argv)
          }
       }
    }
+
+   // No parameters? Run everything
+   if (argc == 1) {
+      for (size_t j=0; j<sizeof test_funcs/sizeof test_funcs[0]; j++) {
+         int retcode = test_funcs[j].fptr ();
+         printf ("test %s returned %i\n", test_funcs[j].name, retcode);
+         ret += retcode;
+         ntests++;
+      }
+   }
+
 
    printf ("Ran %zu tests, with %i errors\n", ntests, ret);
    return ret;
