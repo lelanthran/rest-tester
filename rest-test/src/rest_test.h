@@ -13,6 +13,12 @@ typedef struct rest_test_t rest_test_t;
 extern "C" {
 #endif
 
+   rest_test_t *rest_test_new (const char *name,
+                               const char *fname,
+                               size_t line_no,
+                               rest_test_t *parent);
+   void rest_test_del (rest_test_t **rt);
+
 
 
 #ifdef __cplusplus

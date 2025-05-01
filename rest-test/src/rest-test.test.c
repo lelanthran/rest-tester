@@ -1,11 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 
 #include "rest_test_symt.h"
 #include "rest_test.h"
 
-int main (void)
+int test_symt (void)
 {
    int errcount = 0;
    static const struct {
@@ -63,6 +64,44 @@ cleanup:
 
    printf ("Encountered %i errors\n", errcount);
    return errcount;
+}
+
+int test_rest_test (void)
+{
+   rest_test_t *rt = rest_test_new ("Test test", "in.rtest", 1, NULL);
+
+   printf ("testing rest_test\n");
+
+   rest_test_del (&rt);
+   return 0;
+}
+
+int main (int argc, char **argv)
+{
+   int ret = 0;
+
+   struct {
+      const char *name;
+      int (*fptr) (void);
+   } test_funcs[] = {
+      { "symt",      test_symt },
+      { "rest_test", test_rest_test },
+   };
+
+   size_t ntests = 0;
+   for (int i=1; i<argc; i++) {
+      for (size_t j=0; j<sizeof test_funcs/sizeof test_funcs[0]; j++) {
+         if ((strcmp (test_funcs[j].name, argv[i])) == 0) {
+            int retcode = test_funcs[j].fptr ();
+            printf ("test %s returned %i\n", test_funcs[j].name, retcode);
+            ret += retcode;
+            ntests++;
+         }
+      }
+   }
+
+   printf ("Ran %zu tests, with %i errors\n", ntests, ret);
+   return ret;
 }
 
 

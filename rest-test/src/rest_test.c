@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <ctype.h>
 
 #include "ds_hmap.h"
 #include "ds_stack.h"
@@ -141,20 +142,22 @@ struct header_t {
 
 // Store the request information
 struct req_t {
+   int          lasterr;
    char        *method;
-   char        *request_uri;
+   char        *uri;
    char        *http_version;
    char        *body;
-   ds_hmap_t   *rqst_headers;    // struct header_t *
+   ds_hmap_t   *headers;    // struct header_t *
 };
 
 // Store the response information
 struct rsp_t {
+   int          lasterr;
    char        *http_version;
    char        *status_code;
    char        *reason;
    char        *body;
-   ds_hmap_t   *rsp_headers;  // struct header_t *
+   ds_hmap_t   *headers;  // struct header_t *
 };
 
 // Store each assertion. Assertions are stored as a stack of operators and operands
@@ -170,12 +173,15 @@ struct assertion_t {
 
 // The test record.
 struct rest_test_t {
+   // Store a pointer to the parent so we can maintain scoping
+   rest_test_t *parent;
+
    // Symbol table
    rest_test_symt_t  *st;
 
    // Identify the test
    char  *fname;
-   char  *id;
+   char  *name;
 
    // The request and response data; note that all responses are stored in memory
    struct req_t req;
@@ -186,16 +192,39 @@ struct rest_test_t {
 };
 
 
-#define CLEANUP(...)      do {\
+
+
+/* *********************************************************************************
+ * Helpers...
+ */
+
+#define CLEANUP(...) \
+do {\
    ERRORF(__VA_ARGS__);\
    goto cleanup;\
 } while (0)
+
+#define TOLOWER(s)   \
+for (size_t i=0; s[i]; i++) {\
+   s[i] = tolower(s[i]);\
+}
+
+#define SET_FIELD(obj,field,value)  \
+do {\
+   if (!obj || obj->lasterr)\
+      return obj;\
+   free (obj->field);\
+   if (!(obj->field = ds_str_dup (value)))\
+      obj->lasterr = -1;\
+   return obj;\
+} while (0)
+
 
 /* *********************************************************************************
  * Header functions.
  */
 
-void header_del (struct header_t **h)
+static void header_del (struct header_t **h)
 {
    if (!h || !*h)
       return;
@@ -206,9 +235,20 @@ void header_del (struct header_t **h)
    *h = NULL;
 }
 
-struct header_t *header_new (const char *source,
-                             size_t line_no,
-                             const char *line)
+static void _header_del (const void *key, size_t keylen,
+                         void *header, size_t headerlen,
+                         void *hmap)
+{
+   struct header_t *h = header;
+   const char *k = key;
+   ds_hmap_t *hm = hmap;
+   header_del (&h);
+   ds_hmap_remove (hm, k, keylen);
+}
+
+static struct header_t *header_new (const char *source,
+                                    size_t line_no,
+                                    const char *line)
 {
    bool error = true;
    struct header_t *ret = calloc (1, sizeof *ret);
@@ -219,6 +259,8 @@ struct header_t *header_new (const char *source,
 
    if (!(ret->source = ds_str_dup (source)))
       CLEANUP ("[%s:%zu %s] OOM allocating source\n", source, line_no, line);
+
+   TOLOWER (copy);
 
    char *delim = strchr (copy, ':');
    if (!delim)
@@ -244,15 +286,193 @@ cleanup:
    return ret;
 }
 
+
+
+
 /* *********************************************************************************
  * Request functions.
  */
+
+static void req_clear (struct req_t *req)
+{
+   free (req->method);
+   free (req->uri);
+   free (req->http_version);
+   free (req->body);
+
+   ds_hmap_iterate (req->headers, _header_del, req->headers);
+   ds_hmap_del (req->headers);
+
+   memset (req, 0, sizeof *req);
+}
+
+static struct req_t *req_method (struct req_t *req, const char *method)
+{
+   SET_FIELD (req, method, method);
+}
+
+static struct req_t *req_uri (struct req_t *req, const char *uri)
+{
+   SET_FIELD (req, uri, uri);
+}
+
+static struct req_t *req_http_version (struct req_t *req, const char *http_version)
+{
+   SET_FIELD (req, http_version, http_version);
+}
+
+static struct req_t *req_body (struct req_t *req, const char *body)
+{
+   SET_FIELD (req, body, body);
+}
+
+static struct req_t *req_body_append (struct req_t *req, const char *body)
+{
+   if (!req || req->lasterr)
+      return req;
+
+   char *tmp = realloc (req->body, strlen (req->body) + strlen (body) + 1);
+   if (!tmp) {
+      req->lasterr = -1;
+      return req;
+   }
+
+   strcpy (tmp, req->body);
+   strcat (tmp, body);
+   free (req->body);
+   req->body = tmp;
+   return req;
+}
+
+
+
+
 
 /* *********************************************************************************
  * Response functions.
  */
 
+static void rsp_clear (struct rsp_t *rsp)
+{
+   free (rsp->http_version);
+   free (rsp->status_code);
+   free (rsp->reason);
+   free (rsp->body);
+
+   ds_hmap_iterate (rsp->headers, _header_del, rsp->headers);
+   ds_hmap_del (rsp->headers);
+
+   memset (rsp, 0, sizeof *rsp);
+}
+
+static struct rsp_t *rsp_http_version (struct rsp_t *rsp, const char *http_version)
+{
+   SET_FIELD (rsp, http_version, http_version);
+}
+
+static struct rsp_t *rsp_status_code (struct rsp_t *rsp, const char *status_code)
+{
+   SET_FIELD (rsp, status_code, status_code);
+}
+
+static struct rsp_t *rsp_reason (struct rsp_t *rsp, const char *reason)
+{
+   SET_FIELD (rsp, reason, reason);
+}
+
+static struct rsp_t *rsp_body (struct rsp_t *rsp, const char *body)
+{
+   SET_FIELD (rsp, body, body);
+}
+
+static struct rsp_t *rsp_body_append (struct rsp_t *rsp, const char *body)
+{
+   if (!rsp || rsp->lasterr)
+      return rsp;
+
+   char *tmp = realloc (rsp->body, strlen (rsp->body) + strlen (body) + 1);
+   if (!tmp) {
+      rsp->lasterr = -1;
+      return rsp;
+   }
+
+   strcpy (tmp, rsp->body);
+   strcat (tmp, body);
+   free (rsp->body);
+   rsp->body = tmp;
+   return rsp;
+}
+
+
+
+
+
 /* *********************************************************************************
  * Assertion functions.
  */
+
+
+
+
+
+
+/* *********************************************************************************
+ * Public functions.
+ */
+
+rest_test_t *rest_test_new (const char *name,
+                            const char *fname,
+                            size_t line_no,
+                            rest_test_t *parent)
+{
+   bool error = true;
+   struct rest_test_symt_t *parent_symt = NULL;
+
+   rest_test_t *ret = calloc (1, sizeof *ret);
+   if (!ret)
+      CLEANUP ("OOM error allocating rest_test_t structure\n");
+
+   if (parent) {
+      parent_symt = parent->st;
+   }
+
+   ret->st = rest_test_symt_new (name, parent_symt, 32);
+   ret->name = ds_str_dup (name);
+   ret->fname = ds_str_dup (fname);
+   ret->req.headers = ds_hmap_new (32);
+   ret->rsp.headers = ds_hmap_new (32);
+   ret->assertions = ds_array_new ();
+
+   if (!ret->st || !ret->name || !ret->fname || ! ret->req.headers
+         || !ret->rsp.headers || !ret->assertions) {
+      CLEANUP ("Failed to initialise test structure\n");
+   }
+
+   error = false;
+
+cleanup:
+   if (error) {
+      rest_test_del (&ret);
+   }
+
+   return ret;
+}
+
+void rest_test_del (rest_test_t **rt)
+{
+   if (!rt || !*rt)
+      return;
+
+   rest_test_symt_del (&(*rt)->st);
+   free ((*rt)->name);
+   free ((*rt)->fname);
+   ds_hmap_iterate ((*rt)->req.headers, _header_del, (*rt)->req.headers);
+   ds_hmap_del ((*rt)->req.headers);
+   ds_hmap_iterate ((*rt)->rsp.headers, _header_del, (*rt)->rsp.headers);
+   ds_hmap_del ((*rt)->rsp.headers);
+   // ds_array_iterate ((*rt)->assertions, _assertion_del, (*rt)->assertions);
+   ds_array_del ((*rt)->assertions);
+
+   free (*rt);
+}
 
