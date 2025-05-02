@@ -103,7 +103,7 @@ cleanup:
 int test_parser (void)
 {
    rest_test_t **rts = rest_test_parse_file (NULL, "tests/in.rtest");
-   for (size_t i=0; rts[i]; i++) {
+   for (size_t i=0; rts && rts[i]; i++) {
       rest_test_dump (rts[i], stdout);
       rest_test_del (&rts[i]);
    }
