@@ -5,6 +5,7 @@
 
 #include "rest_test_symt.h"
 #include "rest_test.h"
+#include "rest_test_parse.h"
 
 int test_symt (void)
 {
@@ -101,6 +102,14 @@ cleanup:
 
 int test_parser (void)
 {
+   rest_test_t **rts = rest_test_parse_file (NULL, "tests/in.rtest");
+   for (size_t i=0; rts[i]; i++) {
+      rest_test_dump (rts[i], stdout);
+      rest_test_del (&rts[i]);
+   }
+
+   free (rts);
+
    return 0;
 }
 

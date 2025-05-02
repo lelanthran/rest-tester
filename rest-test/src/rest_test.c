@@ -254,11 +254,11 @@ static void _header_del (const void *key, size_t keylen,
 
 static void _header_print (const void *key, size_t keylen,
                            void *header, size_t headerlen,
-                           void *fout)
+                           void *outf)
 {
    struct header_t *h = header;
    const char *k = key;
-   FILE *f = fout;
+   FILE *f = outf;
    (void)headerlen;
    (void)keylen;
    fprintf (f, "  [%s:%zu] [%s] [%s]\n", h->source, h->line_no, k, h->value);
@@ -505,33 +505,45 @@ void rest_test_del (rest_test_t **rt)
    free (*rt);
 }
 
-void rest_test_dump (rest_test_t *rt, FILE *fout)
+void rest_test_dump (rest_test_t *rt, FILE *outf)
 {
-   if (!fout)
-      fout = stdout;
+   if (!outf)
+      outf = stdout;
    if (!rt) {
-      fprintf (fout, "NULL test");
+      fprintf (outf, "NULL test");
       return;
    }
-   fprintf (fout, "Source:                [%s:%zu]\n", rt->fname, rt->line_no);
-   fprintf (fout, "Test:                  [%s]\n", rt->name);
-   fprintf (fout, "Last error:            [%i]\n", rt->lasterr);
-   fprintf (fout, "Req->method:           [%s]\n", rt->req.method);
-   fprintf (fout, "Req->uri:              [%s]\n", rt->req.uri);
-   fprintf (fout, "Req->http_version:     [%s]\n", rt->req.http_version);
-   fprintf (fout, "Req->body:             [%s]\n", rt->req.body);
-   ds_hmap_iterate (rt->req.headers, _header_print, fout);
-   fprintf (fout, "Rsp->http_version:     [%s]\n", rt->rsp.http_version);
-   fprintf (fout, "Rsp->status_code:      [%s]\n", rt->rsp.status_code);
-   fprintf (fout, "Rsp->reason:           [%s]\n", rt->rsp.reason);
-   fprintf (fout, "Rsp->body:             [%s]\n", rt->rsp.body);
-   ds_hmap_iterate (rt->rsp.headers, _header_print, fout);
+   fprintf (outf, "Source:                [%s:%zu]\n", rt->fname, rt->line_no);
+   fprintf (outf, "Test:                  [%s]\n", rt->name);
+   fprintf (outf, "Last error:            [%i]\n", rt->lasterr);
+   fprintf (outf, "Req->method:           [%s]\n", rt->req.method);
+   fprintf (outf, "Req->uri:              [%s]\n", rt->req.uri);
+   fprintf (outf, "Req->http_version:     [%s]\n", rt->req.http_version);
+   fprintf (outf, "Req->body:             [%s]\n", rt->req.body);
+   ds_hmap_iterate (rt->req.headers, _header_print, outf);
+   fprintf (outf, "Rsp->http_version:     [%s]\n", rt->rsp.http_version);
+   fprintf (outf, "Rsp->status_code:      [%s]\n", rt->rsp.status_code);
+   fprintf (outf, "Rsp->reason:           [%s]\n", rt->rsp.reason);
+   fprintf (outf, "Rsp->body:             [%s]\n", rt->rsp.body);
+   ds_hmap_iterate (rt->rsp.headers, _header_print, outf);
 }
 
 // Get the last error value
 int rest_test_lasterr (rest_test_t *rt)
 {
    return rt ? rt->lasterr : -2;
+}
+
+bool rest_test_set_name (rest_test_t *rt, const char *name)
+{
+   TEST_RT_BOOL(rt);
+   char *tmp = ds_str_dup (name);
+   if (!tmp)
+      return false;
+
+   free (rt->name);
+   rt->name = tmp;
+   return true;
 }
 
 

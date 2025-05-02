@@ -24,6 +24,9 @@ extern "C" {
    // Get the last error value
    int rest_test_lasterr (rest_test_t *rt);
 
+   // Set the name
+   bool rest_test_set_name (rest_test_t *rt, const char *name);
+
    // Set all the fields in the request
    bool rest_test_req_set_method (rest_test_t *rt, const char *method);
    bool rest_test_req_set_uri (rest_test_t *rt, const char *uri);
