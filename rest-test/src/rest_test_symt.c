@@ -5,6 +5,7 @@
 #include "ds_hmap.h"
 #include "ds_str.h"
 
+#include "rest_test_token.h"
 #include "rest_test_symt.h"
 
 struct rest_test_symt_t {

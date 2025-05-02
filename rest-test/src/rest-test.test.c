@@ -1,11 +1,67 @@
+#define _POSIX_C_SOURCE 200809L
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
 
+#include <unistd.h>
+
+#include "ds_str.h"
+
 #include "rest_test_symt.h"
 #include "rest_test.h"
 #include "rest_test_parse.h"
+
+#define CLEANUP(...) \
+do {\
+   ERRORF(__VA_ARGS__);\
+   goto cleanup;\
+} while (0)
+
+static void file_del (char **fname)
+{
+   if (fname && *fname) {
+      remove (*fname);
+   }
+   free (*fname);
+   *fname = NULL;
+}
+
+static char *file_new (const char **strings)
+{
+   bool error = true;
+   int fd = -1;
+   char *fname = ds_str_dup ("tmp_XXXXXX");
+   if (!fname) {
+      CLEANUP ("Failed to create temporary file: %m\n");
+   }
+
+   if ((fd = mkstemp (fname)) <= 0) {
+      CLEANUP ("Failed to create temporary file: %m\n");
+   }
+
+   for (size_t i=0; strings[i]; i++) {
+      ssize_t slen = strlen (strings[i]);
+      ssize_t nbytes = write (fd, strings[i], slen);
+      if (nbytes != slen) {
+         CLEANUP ("Wrote %zi/%zi bytes: %m\n", nbytes, slen);
+      }
+      if ((write (fd, "\n", 1)) != 1) {
+         CLEANUP ("Failed to write EOL\n");
+      }
+   }
+
+   close (fd);
+
+   error = false;
+cleanup:
+   if (error) {
+      file_del (&fname);
+   }
+   return fname;
+}
+
 
 int test_symt (void)
 {
@@ -102,15 +158,41 @@ cleanup:
 
 int test_parser (void)
 {
-   rest_test_t **rts = rest_test_parse_file (NULL, "tests/in.rtest");
-   for (size_t i=0; rts && rts[i]; i++) {
+   int ret = 1;
+   static const char *test1[] = {
+      "# This is a comment",
+      "",
+      ".test \"First\ntest\"",
+      "",
+      ".uri {BASE_URI}",
+      "# Set some variables",
+      ".global BASE_URI \"localhost:8081\"",
+      ".parent BASE_URI \"localhost:8082\"",
+      ".local  BASE_URI \"localhost:8083\"",
+      NULL,
+   };
+   char *testfile1 = file_new (test1);
+
+   if (!testfile1) {
+      CLEANUP ("Failed to create file\n");
+   }
+
+
+   rest_test_t **rts = rest_test_parse_file (NULL, testfile1);
+   if (!rts) {
+      CLEANUP ("Failed to parse [%s]\n", testfile1);
+   }
+
+   for (size_t i=0; rts[i]; i++) {
       rest_test_dump (rts[i], stdout);
       rest_test_del (&rts[i]);
    }
 
+   ret = 0;
+cleanup:
    free (rts);
-
-   return 0;
+   file_del (&testfile1);
+   return ret;
 }
 
 int main (int argc, char **argv)
