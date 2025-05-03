@@ -1,0 +1,25 @@
+
+
+
+Variable Substitution
+---------------------
+
+Switch `rest_test_t` objects from using strings for each field storage
+using `rest_test_token_t *` objects: we need to know whether an object is a
+string or a symbol (in order to perform variable substitution). This has a
+large impact:
+1. Prior to `curl` being called, each symbol must be replaced with a value
+   from the symbol table.
+2. Prior to `curl` being called, each string must be checked for variable
+   interpolation. Due to how the parser works, we cannot support string
+   concatenation.
+
+Assertions
+----------
+
+Have a large problem with assertions: how can we tell when they end? We lose
+the newlines during the tokenisation.
+
+It might be best for assertions to always end with a semi-colon, and have the
+tokeniser return the semi-colon seperately from the string.
+
