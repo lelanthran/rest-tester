@@ -24,6 +24,8 @@ extern "C" {
    // Get the last error value
    int rest_test_lasterr (rest_test_t *rt);
 
+   rest_test_symt_t *rest_test_symt (rest_test_t *rt);
+
    // Set the name
    bool rest_test_set_name (rest_test_t *rt, const char *name);
 

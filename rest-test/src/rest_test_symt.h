@@ -5,6 +5,12 @@
 typedef struct rest_test_symt_t rest_test_symt_t;
 
 /* *****************************************************************************
+ * TODO: Symbol tables should store token_t types, for both the key and the value.
+ * For now using bare strings for keys and for values, but it makes for better error
+ * reporting to be able to display to the user where a symbol was first defined.
+ */
+
+/* *****************************************************************************
  * A very simple symbol table implementation. Simply put, this is a hashmap with
  * support for a parent hashmap. When looking for a symbol, if it is not found in
  * the specified symbol table the search is recursively repeated on the parent node

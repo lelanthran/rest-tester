@@ -89,11 +89,14 @@ void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout)
 bool rest_test_symt_add (rest_test_symt_t *symt,
                          const char *symbol, const char *value)
 {
+   if (!symt)
+      return false;
+
    char *copy = ds_str_dup (value);
    if (!copy)
       return false;
    char *existing = NULL;
-   if ((ds_hmap_get_str_str(symt->hmap, symbol, &existing)))
+   if ((ds_hmap_get_str_str (symt->hmap, symbol, &existing)))
       free (existing);
 
    return ds_hmap_set_str_str(symt->hmap, symbol, copy) != NULL;

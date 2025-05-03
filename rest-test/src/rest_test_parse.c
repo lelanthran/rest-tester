@@ -22,6 +22,9 @@ do {\
 
 static bool array_push (void ***array, size_t *nitems, void *el)
 {
+   if (!el)
+      return true;
+
    void **tmp = realloc (*array, (sizeof *tmp) * ((*nitems) + 2));
    if (!tmp)
       return false;
@@ -96,30 +99,34 @@ static enum directive_t directive_value (const char *line)
  * Public functions.
  */
 
-rest_test_t **rest_test_parse_file (rest_test_symt_t *st, const char *filename)
+rest_test_t **rest_test_parse_file (rest_test_symt_t *parent, const char *filename)
 {
    FILE *inf = fopen (filename, "r");
    if (!inf) {
       return NULL;
    }
-   rest_test_t **ret = rest_test_parse_stream (st, inf, filename);
+   rest_test_t **ret = rest_test_parse_stream (parent, inf, filename);
    fclose (inf);
 
    return ret;
 }
 
-rest_test_t **rest_test_parse_stream (rest_test_symt_t *st, FILE *inf, const char *source)
+rest_test_t **rest_test_parse_stream (rest_test_symt_t *parent, FILE *inf, const char *source)
 {
    bool error = true;
    size_t line_no = 1;
    struct rest_test_token_t *token = NULL;
    rest_test_t **ret = NULL;
    size_t nitems = 0;
-   rest_test_t *current = rest_test_new ("", source, line_no, st);
-   rest_test_symt_t *global = st;
+   rest_test_t *current = NULL;
+   rest_test_symt_t *local = NULL;
+   rest_test_symt_t *global = parent;
+   // Used for whatever temporary strings are needed during execution
+   char *tmp = NULL;
 
    // At most two parameters for a directive
-   struct rest_test_token_t *params[2] = { NULL, NULL };
+   struct rest_test_token_t *ptokens[2] = { NULL, NULL };
+   const char *pstrings[2] = { NULL, NULL };
 
    // Find the topmost symbol table
    while (rest_test_symt_parent (global)) {
@@ -128,6 +135,8 @@ rest_test_t **rest_test_parse_stream (rest_test_symt_t *st, FILE *inf, const cha
 
    // Read directive token, then dispatch an action based on the directive
    while ((token = rest_test_token_next (inf, source, &line_no))) {
+      free (tmp);
+      tmp = NULL;
       enum rest_test_token_type_t type = rest_test_token_type (token);
       const char *value = rest_test_token_value (token);
       if (type == token_UNKNOWN) {
@@ -145,53 +154,129 @@ rest_test_t **rest_test_parse_stream (rest_test_symt_t *st, FILE *inf, const cha
                   rest_test_token_type_string (type), value);
       }
 
-      rest_test_token_del (&params[0]);
-      rest_test_token_del (&params[1]);
+      rest_test_token_del (&ptokens[0]);
+      rest_test_token_del (&ptokens[1]);
 
 #define CHECK_PARAMS(n)  \
 for (size_t i=0; i<n; i++) {\
-   if (params[i] == NULL) {\
+   if (ptokens[i] == NULL) {\
       CLEANUP ("[%s:%zu] (%s) Expected parameter %zu, found NULL\n",\
                source, line_no, value, i+1);\
    }\
 }
+
+#define GET_PARAMS(n)   \
+do {\
+   for (size_t i=0; i<n; i++) {\
+      ptokens[i] = rest_test_token_next (inf, source, &line_no);\
+      pstrings[i] = rest_test_token_value (ptokens[i]);\
+   }\
+   CHECK_PARAMS(n);\
+} while (0)
+
+#define CHECK_CURRENT   \
+if (current == NULL) {\
+      CLEANUP ("[%s:%zu] Directive [%s] only valid within a test\n",\
+               source, line_no, rest_test_token_value (token));\
+}
+
       bool dispatch_code = false;
       switch (directive_value (value)) {
          case directive_GLOBAL:
-            params[0] = rest_test_token_next (inf, source, &line_no);
-            params[1] = rest_test_token_next (inf, source, &line_no);
-            CHECK_PARAMS(2);
-            dispatch_code = rest_test_symt_add(global, params[0], params[1]);
+            GET_PARAMS(2);
+            dispatch_code = global
+               ? rest_test_symt_add (global, pstrings[0], pstrings[1])
+               : true;
             break;
 
          case directive_PARENT:
-            params[0] = rest_test_token_next (inf, source, &line_no);
-            params[1] = rest_test_token_next (inf, source, &line_no);
-            CHECK_PARAMS(2);
-            dispatch_code = rest_test_symt_add(st, params[0], params[1]);
+            GET_PARAMS(2);
+            dispatch_code = parent
+               ? rest_test_symt_add (parent, pstrings[0], pstrings[1])
+               : true;
             break;
 
          case directive_LOCAL:
+            CHECK_CURRENT;
+            GET_PARAMS(2);
+            dispatch_code = rest_test_symt_add (local, pstrings[0], pstrings[1]);
+            break;
+
          case directive_TEST:
+            if (!(array_push ((void ***)&ret, &nitems, current))) {
+               CLEANUP ("OOM appending to array\n");
+            }
+            GET_PARAMS(1);
+            current = rest_test_new ("", source, line_no, parent);
+            local = rest_test_symt (current);
+            if (!current || ! local) {
+               CLEANUP ("Failed to allocate new test [%s:%zu]: %s\n",
+                        source, line_no, pstrings[0]);
+            }
+            dispatch_code = true;
+            break;
+
          case directive_METHOD:
+            GET_PARAMS(1);
+            dispatch_code = rest_test_req_set_method (current, pstrings[0]);
+            break;
+
          case directive_URI:
+            GET_PARAMS(1);
+            dispatch_code = rest_test_req_set_uri (current, pstrings[0]);
+            break;
+
          case directive_HTTP_VERSION:
+            GET_PARAMS(1);
+            dispatch_code = rest_test_req_set_http_version (current, pstrings[0]);
+            break;
+
          case directive_HEADER:
+            GET_PARAMS(2);
+            if (!(tmp = ds_str_cat (pstrings[0], pstrings[1], NULL))) {
+               CLEANUP ("[%s:%zu] OOM concatenating header value\n", source, line_no);
+            }
+            dispatch_code = rest_test_req_set_header (current, source, line_no, tmp);
+            free (tmp);
+            tmp = NULL;
+            break;
+
          case directive_BODY:
+            GET_PARAMS(1);
+            dispatch_code = rest_test_req_append_body (current, pstrings[0]);
+            break;
+
          case directive_ASSERT:
+            GET_PARAMS(1);
+            rest_test_req_set_uri (current, pstrings[0]);
+            break;
+
          case directive_UNKNOWN:
          default:
+            CLEANUP ("Unhandled directive in [%s:%zu]: %s\n",
+                     source, line_no, rest_test_token_value (token));
             break;
       }
 
+      if (dispatch_code != true) {
+         CLEANUP ("[%s:%zu]: dispatch on [%s] failed\n",
+                  source, line_no, rest_test_token_value (token));
+      }
+      rest_test_token_del (&token);
    }
+
+   if (!(array_push ((void ***)&ret, &nitems, current))) {
+      CLEANUP ("OOM appending to array\n");
+   }
+   current = NULL;
 
 
    error = false;
 cleanup:
+   free (tmp);
    rest_test_token_del (&token);
-   rest_test_token_del (&params[0]);
-   rest_test_token_del (&params[1]);
+   rest_test_token_del (&ptokens[0]);
+   rest_test_token_del (&ptokens[1]);
    rest_test_del (&current);
 
    if (error) {

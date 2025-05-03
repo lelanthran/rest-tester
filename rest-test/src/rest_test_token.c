@@ -374,6 +374,16 @@ cleanup:
 }
 
 
+enum rest_test_token_type_t rest_test_token_type (rest_test_token_t *token)
+{
+   return token ? token->type : token_NONE;
+}
+
+const char *rest_test_token_value (rest_test_token_t *token)
+{
+   return token ? token->value : NULL;
+}
+
 
 
 

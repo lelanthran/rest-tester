@@ -534,6 +534,11 @@ int rest_test_lasterr (rest_test_t *rt)
    return rt ? rt->lasterr : -2;
 }
 
+rest_test_symt_t *rest_test_symt (rest_test_t *rt)
+{
+   return rt ? rt->st : NULL;
+}
+
 bool rest_test_set_name (rest_test_t *rt, const char *name)
 {
    TEST_RT_BOOL(rt);
