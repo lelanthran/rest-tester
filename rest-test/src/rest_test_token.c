@@ -311,26 +311,52 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
       }
 
 
+      if (c == ';') {
+         char tmp[2] = { ';', 0 };
+         type = token_ASSERT_END;
+         if (!(value = ds_str_dup (tmp))) {
+            CLEANUP ("[%s:%zu] Failed to read assert-end\n", source, *line_no);
+         }
+
+      }
+
       if (c == '.') {
          type = token_DIRECTIVE;
          if (!(value = read_directive (inf, line_no))) {
-            CLEANUP ("[%s:%zu] Failed to read directive", source, *line_no);
+            CLEANUP ("[%s:%zu] Failed to read directive\n", source, *line_no);
          }
          break;
       }
 
       if (c == '"') {
+         value = NULL;
          type = token_STRING;
-         if (!(value = read_string (inf, line_no))) {
-            CLEANUP ("[%s:%zu] Failed to read string", source, *line_no);
+         while (c == '"') {
+            char *tmp = read_string (inf, line_no);
+            if (!tmp) {
+               CLEANUP ("[%s:%zu] Failed to read string\n", source, *line_no);
+            }
+            if (!(ds_str_append (&value, tmp, NULL))) {
+               free (tmp);
+               CLEANUP ("[%s:%zu] Failed to append string\n", source, *line_no);
+            }
+            free (tmp);
+            while ((c = readchar (inf, line_no)) != EOF) {
+               if (isspace (c)) {
+                  continue;
+               }
+               break;
+            }
+            unreadchar (c, inf, line_no);
          }
+         ERRORF ("Returning [%s]\n", value);
          break;
       }
 
       if (c == '0') {
          type = token_INTEGER;
          if (!(value = read_octhex (inf, line_no))) {
-            CLEANUP ("[%s:%zu] Failed to read octhex", source, *line_no);
+            CLEANUP ("[%s:%zu] Failed to read octhex\n", source, *line_no);
          }
          break;
       }
@@ -338,7 +364,7 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
       if (isdigit (c)) {
          type = token_INTEGER;
          if (!(value = read_integer (inf, line_no))) {
-            CLEANUP ("[%s:%zu] Failed to read integer", source, *line_no);
+            CLEANUP ("[%s:%zu] Failed to read integer\n", source, *line_no);
          }
          break;
       }
@@ -346,7 +372,7 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
       if (isalpha (c) || c == '_') {
          type = token_SYMBOL;
          if (!(value = read_symbol (inf, line_no))) {
-            CLEANUP ("[%s:%zu] Failed to read symbol", source, *line_no);
+            CLEANUP ("[%s:%zu] Failed to read symbol\n", source, *line_no);
          }
          break;
       }

@@ -162,7 +162,7 @@ int test_parser (void)
    static const char *test1[] = {
       "# This is a comment",
       "",
-      ".test \"First\ntest\"",
+      ".test \"First\" \"\n  test\"",
       "",
       ".uri BASE_URI",
       ".method \"POST\"",

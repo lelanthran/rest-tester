@@ -9,6 +9,7 @@ enum rest_test_token_type_t {
    token_STRING,
    token_SYMBOL,
    token_INTEGER,
+   token_ASSERT_END,
 };
 
 typedef struct rest_test_token_t rest_test_token_t;

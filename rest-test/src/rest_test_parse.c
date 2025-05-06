@@ -248,7 +248,7 @@ if (current == NULL) {\
 
          case directive_ASSERT:
             GET_PARAMS(1);
-            rest_test_req_set_uri (current, pstrings[0]);
+            // TODO: Read the assert
             break;
 
          case directive_UNKNOWN:
