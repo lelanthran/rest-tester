@@ -182,13 +182,15 @@ int test_parser (void)
       NULL,
    };
    char *testfile1 = file_new (test1);
+   rest_test_symt_t *global = rest_test_symt_new ("the-global", NULL, 2);
+   rest_test_symt_t *parent = rest_test_symt_new ("the-parent", global, 2);
 
    if (!testfile1) {
       CLEANUP ("Failed to create file\n");
    }
 
 
-   rest_test_t **rts = rest_test_parse_file (NULL, testfile1);
+   rest_test_t **rts = rest_test_parse_file (parent, testfile1);
    if (!rts) {
       CLEANUP ("Failed to parse [%s]\n", testfile1);
    }
@@ -198,9 +200,14 @@ int test_parser (void)
       rest_test_del (&rts[i]);
    }
 
+   rest_test_symt_dump (parent, stdout);
+   rest_test_symt_dump (global, stdout);
+
    ret = 0;
 cleanup:
    free (rts);
+   rest_test_symt_del (&global);
+   rest_test_symt_del (&parent);
    file_del (&testfile1);
    return ret;
 }

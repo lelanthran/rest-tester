@@ -5,9 +5,9 @@
 typedef struct rest_test_symt_t rest_test_symt_t;
 
 /* *****************************************************************************
- * TODO: Symbol tables should store token_t types, for both the key and the value.
- * For now using bare strings for keys and for values, but it makes for better error
- * reporting to be able to display to the user where a symbol was first defined.
+ * TODO: Symbol tables should store token_t types, for the value.  For now using
+ * bare strings for keys and for values, but it makes for better error reporting to
+ * be able to display to the user where a symbol was first defined.
  */
 
 /* *****************************************************************************
@@ -35,6 +35,9 @@ extern "C" {
    // Returns the direct fields of the symbol table
    const char *rest_test_symt_name (rest_test_symt_t *symt);
    rest_test_symt_t *rest_test_symt_parent (rest_test_symt_t *symt);
+
+   // Sets the direct fields
+   const char *rest_test_symt_set_name (rest_test_symt_t *symt, const char *name);
 
    // Dumps the symbol table to the specified file stream in a human readable
    // format. If `fout` is NULL then `stdout` is used.

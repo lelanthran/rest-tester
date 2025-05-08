@@ -27,7 +27,7 @@ extern "C" {
    rest_test_symt_t *rest_test_symt (rest_test_t *rt);
 
    // Set the name
-   bool rest_test_set_name (rest_test_t *rt, const char *name);
+   const char *rest_test_set_name (rest_test_t *rt, const char *name);
 
    // Set all the fields in the request
    bool rest_test_req_set_method (rest_test_t *rt, const char *method);

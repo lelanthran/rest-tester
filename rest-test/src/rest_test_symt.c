@@ -64,6 +64,17 @@ rest_test_symt_t *rest_test_symt_parent (rest_test_symt_t *symt)
    return symt ? symt->parent : NULL;
 }
 
+const char *rest_test_symt_set_name (rest_test_symt_t *symt, const char *name)
+{
+   char *tmp = ds_str_dup (name);
+   if (!tmp)
+      return NULL;
+
+   free (symt->name);
+   symt->name = tmp;
+   return tmp;
+}
+
 
 void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout)
 {

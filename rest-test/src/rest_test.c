@@ -526,6 +526,7 @@ void rest_test_dump (rest_test_t *rt, FILE *outf)
    fprintf (outf, "Rsp->reason:           [%s]\n", rt->rsp.reason);
    fprintf (outf, "Rsp->body:             [%s]\n", rt->rsp.body);
    ds_hmap_iterate (rt->rsp.headers, _header_print, outf);
+   rest_test_symt_dump (rt->st, outf);
 }
 
 // Get the last error value
@@ -539,7 +540,7 @@ rest_test_symt_t *rest_test_symt (rest_test_t *rt)
    return rt ? rt->st : NULL;
 }
 
-bool rest_test_set_name (rest_test_t *rt, const char *name)
+const char *rest_test_set_name (rest_test_t *rt, const char *name)
 {
    TEST_RT_BOOL(rt);
    char *tmp = ds_str_dup (name);
@@ -548,7 +549,7 @@ bool rest_test_set_name (rest_test_t *rt, const char *name)
 
    free (rt->name);
    rt->name = tmp;
-   return true;
+   return rest_test_symt_set_name (rt->st, tmp);
 }
 
 
