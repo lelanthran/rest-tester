@@ -553,6 +553,40 @@ const char *rest_test_set_name (rest_test_t *rt, const char *name)
    return rest_test_symt_set_name (rt->st, tmp);
 }
 
+const char *rest_test_set_fname (rest_test_t *rt, const char *fname)
+{
+   TEST_RT_BOOL(rt);
+   char *tmp = ds_str_dup (fname);
+   if (!tmp)
+      return false;
+
+   free (rt->fname);
+   rt->fname = tmp;
+   return tmp;
+}
+
+size_t rest_test_set_line_no (rest_test_t *rt, size_t line_no)
+{
+   TEST_RT_BOOL(rt);
+   rt->line_no = line_no;
+   return line_no;
+}
+
+const char *rest_test_get_name (rest_test_t *rt)
+{
+   return rt ? rt->name : NULL;
+}
+
+const char *rest_test_get_fname (rest_test_t *rt)
+{
+   return rt ? rt->fname : NULL;
+}
+
+size_t rest_test_get_line_no (rest_test_t *rt)
+{
+   return rt ? rt->line_no : (size_t)-1;
+}
+
 
 // Set all the fields in the request
 bool rest_test_req_set_method (rest_test_t *rt, const char *method)
@@ -734,5 +768,11 @@ const char *rest_test_rsp_header (rest_test_t *rt, const char *header)
    return value;
 }
 
+bool rest_test_eval_req (rest_test_t *rt, rest_test_token_t **errtoken)
+{
+   TEST_RT_STRING(rt);
+   // TODO
+   return false;
+}
 
 

@@ -411,22 +411,22 @@ cleanup:
 }
 
 
-enum rest_test_token_type_t rest_test_token_type (rest_test_token_t *token)
+enum rest_test_token_type_t rest_test_token_type (const rest_test_token_t *token)
 {
    return token ? token->type : token_NONE;
 }
 
-const char *rest_test_token_value (rest_test_token_t *token)
+const char *rest_test_token_value (const rest_test_token_t *token)
 {
    return token ? token->value : NULL;
 }
 
-const char *rest_test_token_source (rest_test_token_t *token)
+const char *rest_test_token_source (const rest_test_token_t *token)
 {
    return token ? token->source : NULL;
 }
 
-size_t rest_test_token_line_no (rest_test_token_t *token)
+size_t rest_test_token_line_no (const rest_test_token_t *token)
 {
    return token ? token->line_no : (size_t)-1;
 }

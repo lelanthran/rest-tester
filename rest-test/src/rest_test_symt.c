@@ -54,12 +54,12 @@ void rest_test_symt_del (rest_test_symt_t **symt)
    *symt = NULL;
 }
 
-const char *rest_test_symt_name (rest_test_symt_t *symt)
+const char *rest_test_symt_name (const rest_test_symt_t *symt)
 {
    return symt ? symt->name : "";
 }
 
-rest_test_symt_t *rest_test_symt_parent (rest_test_symt_t *symt)
+rest_test_symt_t *rest_test_symt_parent (const rest_test_symt_t *symt)
 {
    return symt ? symt->parent : NULL;
 }
@@ -76,7 +76,7 @@ const char *rest_test_symt_set_name (rest_test_symt_t *symt, const char *name)
 }
 
 
-void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout)
+void rest_test_symt_dump (const rest_test_symt_t *symt, FILE *fout)
 {
    if (!symt)
       return;
@@ -122,13 +122,13 @@ void rest_test_symt_clear (rest_test_symt_t *symt, const char *symbol)
 {
    rest_test_token_t *value = NULL;
    if ((ds_hmap_get_str_ptr(symt->hmap, symbol, (void **)&value))) {
-      ds_hmap_remove_str_ptr (symt->hmap, symbol);
+      ds_hmap_remove_str (symt->hmap, symbol);
       rest_test_token_del (&value);
    }
 }
 
 
-const rest_test_token_t *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol)
+const rest_test_token_t *rest_test_symt_value (const rest_test_symt_t *symt, const char *symbol)
 {
    rest_test_token_t *value = NULL;
    if (!symt)

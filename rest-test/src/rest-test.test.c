@@ -199,8 +199,19 @@ int test_parser (void)
    }
 
    for (size_t i=0; rts[i]; i++) {
+      rest_test_token_t *errtoken = NULL;
+      if (!(rest_test_eval_req (rts[i], &errtoken))) {
+         CLEANUP ("Evaluation failure in test [%s] file [%s:%zu]\n"
+                  "Unexpected token [%s] in [%s:%zu]\n",
+                  rest_test_get_name (rts[i]),
+                  rest_test_get_fname (rts[i]),
+                  rest_test_get_line_no(rts[i]),
+                  rest_test_token_value (errtoken),
+                  rest_test_token_source (errtoken),
+                  rest_test_token_line_no (errtoken));
+      }
+
       rest_test_dump (rts[i], stdout);
-      rest_test_del (&rts[i]);
    }
 
    rest_test_symt_dump (parent, stdout);
@@ -208,6 +219,9 @@ int test_parser (void)
 
    ret = 0;
 cleanup:
+   for (size_t i=0; rts[i]; i++) {
+      rest_test_del (&rts[i]);
+   }
    free (rts);
    rest_test_symt_del (&global);
    rest_test_symt_del (&parent);

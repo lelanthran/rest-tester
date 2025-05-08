@@ -24,10 +24,17 @@ extern "C" {
    // Get the last error value
    int rest_test_lasterr (rest_test_t *rt);
 
+   // Get the symbol table
    rest_test_symt_t *rest_test_symt (rest_test_t *rt);
 
-   // Set the name
+   // Set the name, the filename and the line number
    const char *rest_test_set_name (rest_test_t *rt, const char *name);
+   const char *rest_test_set_fname (rest_test_t *rt, const char *fname);
+   size_t rest_test_set_line_no (rest_test_t *rt, size_t line_no);
+   // Get the name, filename and line number
+   const char *rest_test_get_name (rest_test_t *rt);
+   const char *rest_test_get_fname (rest_test_t *rt);
+   size_t rest_test_get_line_no (rest_test_t *rt);
 
    // Set all the fields in the request
    bool rest_test_req_set_method (rest_test_t *rt, const char *method);
@@ -64,6 +71,13 @@ extern "C" {
    const char *rest_test_rsp_body (rest_test_t *rt);
    const char *rest_test_rsp_header (rest_test_t *rt, const char *header);
 
+   // Evaluate all the request fields in the test, performing both interpolation and
+   // substitution. The token that caused the error is returned in the `errtoken`
+   // parameter and the caller MUST NOT delete it.
+   //
+   // If the `errtoken` parameter is NULL, the token causing the error will not be
+   // returned.
+   bool rest_test_eval_req (rest_test_t *rt, rest_test_token_t **errtoken);
 
 #ifdef __cplusplus
 };

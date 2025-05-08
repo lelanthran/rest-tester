@@ -33,15 +33,15 @@ extern "C" {
    void rest_test_symt_del (rest_test_symt_t **symt);
 
    // Returns the direct fields of the symbol table
-   const char *rest_test_symt_name (rest_test_symt_t *symt);
-   rest_test_symt_t *rest_test_symt_parent (rest_test_symt_t *symt);
+   const char *rest_test_symt_name (const rest_test_symt_t *symt);
+   rest_test_symt_t *rest_test_symt_parent (const rest_test_symt_t *symt);
 
    // Sets the direct fields
    const char *rest_test_symt_set_name (rest_test_symt_t *symt, const char *name);
 
    // Dumps the symbol table to the specified file stream in a human readable
    // format. If `fout` is NULL then `stdout` is used.
-   void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout);
+   void rest_test_symt_dump (const rest_test_symt_t *symt, FILE *fout);
 
    // Add a new entry to the specific symbol table. Any existing value with the same
    // symbol is removed. If an entry could not be added (for example, an
@@ -59,7 +59,7 @@ extern "C" {
    //
    // Returns the value of the symbol if the symbol exists, or NULL if the symbol
    // does not exist.
-   const rest_test_token_t *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol);
+   const rest_test_token_t *rest_test_symt_value (const rest_test_symt_t *symt, const char *symbol);
 
 #ifdef __cplusplus
 };
