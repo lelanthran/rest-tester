@@ -219,17 +219,17 @@ if (current == NULL) {\
 
          case directive_METHOD:
             GET_PARAMS(1);
-            dispatch_code = rest_test_req_set_method (current, pstrings[0]);
+            dispatch_code = rest_test_req_set_method (current, ptokens[0]);
             break;
 
          case directive_URI:
             GET_PARAMS(1);
-            dispatch_code = rest_test_req_set_uri (current, pstrings[0]);
+            dispatch_code = rest_test_req_set_uri (current, ptokens[0]);
             break;
 
          case directive_HTTP_VERSION:
             GET_PARAMS(1);
-            dispatch_code = rest_test_req_set_http_version (current, pstrings[0]);
+            dispatch_code = rest_test_req_set_http_version (current, ptokens[0]);
             break;
 
          case directive_HEADER:
@@ -244,7 +244,7 @@ if (current == NULL) {\
 
          case directive_BODY:
             GET_PARAMS(1);
-            dispatch_code = rest_test_req_append_body (current, pstrings[0]);
+            dispatch_code = rest_test_req_append_body (current, ptokens[0]);
             break;
 
          case directive_ASSERT:

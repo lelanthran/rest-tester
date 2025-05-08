@@ -410,6 +410,30 @@ cleanup:
    return ret;
 }
 
+rest_test_token_t *rest_test_token_dup (const rest_test_token_t *src)
+{
+   return src
+      ? rest_test_token_new (src->type, src->value, src->source, src->line_no)
+      : NULL;
+}
+
+bool rest_test_token_append (rest_test_token_t *existing, const rest_test_token_t *new)
+{
+   const char *curstr = existing->value ? existing->value : "";
+   const char *newstr = new->value ? new->value : "";
+   size_t cursize = existing->value ? strlen (existing->value) : 0;
+   size_t newsize = new->value ? strlen (new->value) : 0;
+   size_t size = cursize + newsize + 1;
+   char *newval = malloc (size);
+   if (!newval)
+      return false;
+   strcpy (newval, curstr);
+   strcat (newval, newstr);
+   free (existing->value);
+   existing->value = newval;
+   return true;
+}
+
 
 enum rest_test_token_type_t rest_test_token_type (const rest_test_token_t *token)
 {

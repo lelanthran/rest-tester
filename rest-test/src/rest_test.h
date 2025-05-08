@@ -37,11 +37,11 @@ extern "C" {
    size_t rest_test_get_line_no (rest_test_t *rt);
 
    // Set all the fields in the request
-   bool rest_test_req_set_method (rest_test_t *rt, const char *method);
-   bool rest_test_req_set_uri (rest_test_t *rt, const char *uri);
-   bool rest_test_req_set_http_version (rest_test_t *rt, const char *http_version);
-   bool rest_test_req_set_body (rest_test_t *rt, const char *body);
-   bool rest_test_req_append_body (rest_test_t *rt, const char *body);
+   bool rest_test_req_set_method (rest_test_t *rt, const rest_test_token_t *method);
+   bool rest_test_req_set_uri (rest_test_t *rt, const rest_test_token_t *uri);
+   bool rest_test_req_set_http_version (rest_test_t *rt, const rest_test_token_t *http_version);
+   bool rest_test_req_set_body (rest_test_t *rt, const rest_test_token_t *body);
+   bool rest_test_req_append_body (rest_test_t *rt, const rest_test_token_t *body);
    bool rest_test_req_set_header (rest_test_t *rt,
                                   const char *source, size_t line_no,
                                   const char *value);

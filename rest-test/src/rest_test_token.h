@@ -32,6 +32,10 @@ extern "C" {
                                             const char *source,
                                             size_t *line_no);
 
+   rest_test_token_t *rest_test_token_dup (const rest_test_token_t *src);
+
+   bool rest_test_token_append (rest_test_token_t *existing, const rest_test_token_t *new);
+
    enum rest_test_token_type_t rest_test_token_type (const rest_test_token_t *token);
    const char *rest_test_token_value (const rest_test_token_t *token);
    const char *rest_test_token_source (const rest_test_token_t *token);

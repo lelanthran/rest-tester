@@ -143,12 +143,12 @@ struct header_t {
 
 // Store the request information
 struct req_t {
-   int          lasterr;
-   char        *method;
-   char        *uri;
-   char        *http_version;
-   char        *body;
-   ds_hmap_t   *headers;    // struct header_t *
+   int                lasterr;
+   rest_test_token_t *method;
+   rest_test_token_t *uri;
+   rest_test_token_t *http_version;
+   rest_test_token_t *body;
+   ds_hmap_t         *headers;    // struct header_t *
 };
 
 // Store the response information
@@ -211,11 +211,25 @@ for (size_t i=0; s[i]; i++) {\
    s[i] = (unsigned char)tolower(s[i]);\
 }
 
-#define SET_FIELD(obj,field,value)  \
+#define SET_TOKEN_FIELD(obj,field,value)  \
 do {\
    if (!obj || obj->lasterr)\
       return false;\
-   char *tmp = ds_str_dup (value);\
+   rest_test_token_t *tmp = rest_test_token_dup (value);\
+   if (!tmp) {\
+      obj->lasterr = -1;\
+      return false;\
+   }\
+   rest_test_token_del (&obj->field);\
+   obj->field = tmp;\
+   return true;\
+} while (0)
+
+#define SET_STRING_FIELD(obj,field,value)  \
+do {\
+   if (!obj || obj->lasterr)\
+      return false;\
+   char *tmp = value ? ds_str_dup (value) : ds_str_dup ("");\
    if (!tmp) {\
       obj->lasterr = -1;\
       return false;\
@@ -316,10 +330,10 @@ cleanup:
 
 static void req_clear (struct req_t *req)
 {
-   free (req->method);
-   free (req->uri);
-   free (req->http_version);
-   free (req->body);
+   rest_test_token_del (&req->method);
+   rest_test_token_del (&req->uri);
+   rest_test_token_del (&req->http_version);
+   rest_test_token_del (&req->body);
 
    ds_hmap_iterate (req->headers, _header_del, req->headers);
    ds_hmap_del (req->headers);
@@ -328,45 +342,34 @@ static void req_clear (struct req_t *req)
    memset (req, 0, sizeof *req);
 }
 
-static bool req_method (struct req_t *req, const char *method)
+static bool req_method (struct req_t *req, const rest_test_token_t *method)
 {
-   SET_FIELD (req, method, method);
+   SET_TOKEN_FIELD (req, method, method);
 }
 
-static bool req_uri (struct req_t *req, const char *uri)
+static bool req_uri (struct req_t *req, const rest_test_token_t *uri)
 {
-   SET_FIELD (req, uri, uri);
+   SET_TOKEN_FIELD (req, uri, uri);
 }
 
-static bool req_http_version (struct req_t *req, const char *http_version)
+static bool req_http_version (struct req_t *req, const rest_test_token_t *http_version)
 {
-   SET_FIELD (req, http_version, http_version);
+   SET_TOKEN_FIELD (req, http_version, http_version);
 }
 
-static bool req_body (struct req_t *req, const char *body)
+static bool req_body (struct req_t *req, const rest_test_token_t *body)
 {
-   SET_FIELD (req, body, body);
+   SET_TOKEN_FIELD (req, body, body);
 }
 
-static bool req_body_append (struct req_t *req, const char *body)
+static bool req_body_append (struct req_t *req, const rest_test_token_t *body)
 {
    if (!req || req->lasterr)
       return false;
 
-   size_t param_len = strlen (body) + 1;
-   size_t body_len = req->body ? strlen (req->body) + 1 : 0;
-   char *tmp = malloc (param_len + body_len);
-   if (!tmp) {
-      req->lasterr = -1;
-      return false;
-   }
-   tmp[0] = 0;
-
-   strcpy (tmp, req->body ? req->body : "");
-   strcat (tmp, body);
-   free (req->body);
-   req->body = tmp;
-   return true;
+   return req->body
+      ? rest_test_token_append (req->body, body)
+      : req_body (req, body);
 }
 
 
@@ -393,22 +396,22 @@ static void rsp_clear (struct rsp_t *rsp)
 
 static bool rsp_http_version (struct rsp_t *rsp, const char *http_version)
 {
-   SET_FIELD (rsp, http_version, http_version);
+   SET_STRING_FIELD (rsp, http_version, http_version);
 }
 
 static bool rsp_status_code (struct rsp_t *rsp, const char *status_code)
 {
-   SET_FIELD (rsp, status_code, status_code);
+   SET_STRING_FIELD (rsp, status_code, status_code);
 }
 
 static bool rsp_reason (struct rsp_t *rsp, const char *reason)
 {
-   SET_FIELD (rsp, reason, reason);
+   SET_STRING_FIELD (rsp, reason, reason);
 }
 
 static bool rsp_body (struct rsp_t *rsp, const char *body)
 {
-   SET_FIELD (rsp, body, body);
+   SET_STRING_FIELD (rsp, body, body);
 }
 
 static bool rsp_body_append (struct rsp_t *rsp, const char *body)
@@ -517,10 +520,10 @@ void rest_test_dump (rest_test_t *rt, FILE *outf)
    fprintf (outf, "Source:                [%s:%zu]\n", rt->fname, rt->line_no);
    fprintf (outf, "Test:                  [%s]\n", rt->name);
    fprintf (outf, "Last error:            [%i]\n", rt->lasterr);
-   fprintf (outf, "Req->method:           [%s]\n", rt->req.method);
-   fprintf (outf, "Req->uri:              [%s]\n", rt->req.uri);
-   fprintf (outf, "Req->http_version:     [%s]\n", rt->req.http_version);
-   fprintf (outf, "Req->body:             [%s]\n", rt->req.body);
+   fprintf (outf, "Req->method:           [%s]\n", rest_test_token_value (rt->req.method));
+   fprintf (outf, "Req->uri:              [%s]\n", rest_test_token_value (rt->req.uri));
+   fprintf (outf, "Req->http_version:     [%s]\n", rest_test_token_value (rt->req.http_version));
+   fprintf (outf, "Req->body:             [%s]\n", rest_test_token_value (rt->req.body));
    ds_hmap_iterate (rt->req.headers, _header_print, outf);
    fprintf (outf, "Rsp->http_version:     [%s]\n", rt->rsp.http_version);
    fprintf (outf, "Rsp->status_code:      [%s]\n", rt->rsp.status_code);
@@ -589,25 +592,25 @@ size_t rest_test_get_line_no (rest_test_t *rt)
 
 
 // Set all the fields in the request
-bool rest_test_req_set_method (rest_test_t *rt, const char *method)
+bool rest_test_req_set_method (rest_test_t *rt, const rest_test_token_t *method)
 {
    TEST_RT_BOOL(rt);
    return req_method (&rt->req, method);
 }
 
-bool rest_test_req_set_uri (rest_test_t *rt, const char *uri)
+bool rest_test_req_set_uri (rest_test_t *rt, const rest_test_token_t *uri)
 {
    TEST_RT_BOOL(rt);
    return req_uri (&rt->req, uri);
 }
 
-bool rest_test_req_set_http_version (rest_test_t *rt, const char *http_version)
+bool rest_test_req_set_http_version (rest_test_t *rt, const rest_test_token_t *http_version)
 {
    TEST_RT_BOOL(rt);
    return req_http_version (&rt->req, http_version);
 }
 
-bool rest_test_req_set_body (rest_test_t *rt, const char *body)
+bool rest_test_req_set_body (rest_test_t *rt, const rest_test_token_t *body)
 {
    TEST_RT_BOOL(rt);
    if (!(req_body (&rt->req, body))) {
@@ -617,7 +620,7 @@ bool rest_test_req_set_body (rest_test_t *rt, const char *body)
    return true;
 }
 
-bool rest_test_req_append_body (rest_test_t *rt, const char *body)
+bool rest_test_req_append_body (rest_test_t *rt, const rest_test_token_t *body)
 {
    TEST_RT_BOOL(rt);
    if (!(req_body_append (&rt->req, body))) {
@@ -646,25 +649,25 @@ bool rest_test_req_set_header (rest_test_t *rt,
 const char *rest_test_req_method (rest_test_t *rt)
 {
    TEST_RT_STRING(rt);
-   return rt->req.method;
+   return rest_test_token_value (rt->req.method);
 }
 
 const char *rest_test_req_uri (rest_test_t *rt)
 {
    TEST_RT_STRING(rt);
-   return rt->req.uri;
+   return rest_test_token_value (rt->req.uri);
 }
 
 const char *rest_test_req_http_version (rest_test_t *rt)
 {
    TEST_RT_STRING(rt);
-   return rt->req.http_version;
+   return rest_test_token_value (rt->req.http_version);
 }
 
 const char *rest_test_req_body (rest_test_t *rt)
 {
    TEST_RT_STRING(rt);
-   return rt->req.body;
+   return rest_test_token_value (rt->req.body);
 }
 
 const char *rest_test_req_header (rest_test_t *rt, const char *header)

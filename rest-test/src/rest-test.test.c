@@ -136,14 +136,26 @@ int test_rest_test (void)
       goto cleanup;
    }
 
-   rest_test_req_set_method (rt, "POST");
-   rest_test_req_set_http_version (rt, "HTTP/1.1");
-   rest_test_req_set_uri (rt, "/some/test/ur");
+   rest_test_token_t *method =  rest_test_token_new (token_STRING, "POST", "a", 0);
+   rest_test_token_t *http_version =  rest_test_token_new (token_STRING, "HTTP/1.1", "a", 0);
+   rest_test_token_t *uri =  rest_test_token_new (token_STRING, "/some/path/to/somewhere", "a", 0);
+   rest_test_token_t *body1 =  rest_test_token_new (token_STRING, "A Body Line", "a", 0);
+   rest_test_token_t *body2 =  rest_test_token_new (token_STRING, "Another Body Line", "a", 0);
+
+   rest_test_req_set_method (rt, method);
+   rest_test_req_set_http_version (rt, http_version);
+   rest_test_req_set_uri (rt, uri);
    rest_test_req_set_header (rt, "in.rtest", 5, "X-Header-One: headeR-ONE-VAlue");
    rest_test_req_set_header (rt, "in.rtest", 6, "X-Header-Two: headeR-TWO-VAlue");
    rest_test_req_set_header (rt, "in.rtest", 7, "X-Header-Three: heaDER-THREe-value");
-   rest_test_req_set_body (rt, "A Body Line\n");
-   rest_test_req_append_body (rt, "Another Body Line\n");
+   rest_test_req_set_body (rt, body1);
+   rest_test_req_append_body (rt, body2);
+
+   rest_test_token_del (&method);
+   rest_test_token_del (&http_version);
+   rest_test_token_del (&uri);
+   rest_test_token_del (&body1);
+   rest_test_token_del (&body2);
 
    rest_test_rsp_set_http_version (rt, "http/1.1");
    rest_test_rsp_set_status_code (rt, "201");
