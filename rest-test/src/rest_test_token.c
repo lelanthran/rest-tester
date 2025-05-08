@@ -6,9 +6,9 @@
 
 #include "ds_str.h"
 
+#include "rest_test_token.h"
 #include "rest_test_symt.h"
 #include "rest_test.h"
-#include "rest_test_token.h"
 
 
 #define CLEANUP(...) \
@@ -421,6 +421,15 @@ const char *rest_test_token_value (rest_test_token_t *token)
    return token ? token->value : NULL;
 }
 
+const char *rest_test_token_source (rest_test_token_t *token)
+{
+   return token ? token->source : NULL;
+}
+
+size_t rest_test_token_line_no (rest_test_token_t *token)
+{
+   return token ? token->line_no : (size_t)-1;
+}
 
 
 

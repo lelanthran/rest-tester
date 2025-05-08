@@ -7,9 +7,9 @@
 
 #include "ds_str.h"
 
+#include "rest_test_token.h"
 #include "rest_test_symt.h"
 #include "rest_test.h"
-#include "rest_test_token.h"
 #include "rest_test_parse.h"
 
 
@@ -185,21 +185,21 @@ if (current == NULL) {\
          case directive_GLOBAL:
             GET_PARAMS(2);
             dispatch_code = global
-               ? rest_test_symt_add (global, pstrings[0], pstrings[1])
+               ? rest_test_symt_add (global, pstrings[0], ptokens[1])
                : true;
             break;
 
          case directive_PARENT:
             GET_PARAMS(2);
             dispatch_code = parent
-               ? rest_test_symt_add (parent, pstrings[0], pstrings[1])
+               ? rest_test_symt_add (parent, pstrings[0], ptokens[1])
                : true;
             break;
 
          case directive_LOCAL:
             CHECK_CURRENT;
             GET_PARAMS(2);
-            dispatch_code = rest_test_symt_add (local, pstrings[0], pstrings[1]);
+            dispatch_code = rest_test_symt_add (local, pstrings[0], ptokens[1]);
             break;
 
          case directive_TEST:

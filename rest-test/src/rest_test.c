@@ -7,6 +7,7 @@
 #include "ds_array.h"
 #include "ds_str.h"
 
+#include "rest_test_token.h"
 #include "rest_test_symt.h"
 #include "rest_test.h"
 
@@ -604,7 +605,7 @@ bool rest_test_req_set_header (rest_test_t *rt,
       return false;
    }
 
-   return ds_hmap_set_str_ptr (rt->req.headers, h->name, h, sizeof *h);
+   return ds_hmap_set_str_ptr (rt->req.headers, h->name, h);
 }
 
 // Get all the fields in the request
@@ -694,7 +695,7 @@ bool rest_test_rsp_set_header (rest_test_t *rt,
       return false;
    }
 
-   return ds_hmap_set_str_ptr (rt->rsp.headers, h->name, h, sizeof *h);
+   return ds_hmap_set_str_ptr (rt->rsp.headers, h->name, h);
 }
 
 // Get all the fields in the response

@@ -34,6 +34,8 @@ extern "C" {
 
    enum rest_test_token_type_t rest_test_token_type (rest_test_token_t *token);
    const char *rest_test_token_value (rest_test_token_t *token);
+   const char *rest_test_token_source (rest_test_token_t *token);
+   size_t rest_test_token_line_no (rest_test_token_t *token);
 
 #ifdef __cplusplus
 };

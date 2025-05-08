@@ -41,9 +41,9 @@ void rest_test_symt_del (rest_test_symt_t **symt)
    char **keys = NULL;
    size_t nkeys = ds_hmap_keys((*symt)->hmap, (void ***)&keys, NULL);
    for (size_t i=0; i<nkeys; i++) {
-      char *value = NULL;
-      if ((ds_hmap_get_str_str((*symt)->hmap, keys[i], &value))) {
-         free (value);
+      rest_test_token_t *value = NULL;
+      if ((ds_hmap_get_str_ptr((*symt)->hmap, keys[i], (void **)&value))) {
+         rest_test_token_del (&value);
       }
    }
 
@@ -87,10 +87,11 @@ void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout)
    char **keys = NULL;
    size_t nkeys = ds_hmap_keys(symt->hmap, (void ***)&keys, NULL);
    for (size_t i=0; i<nkeys; i++) {
-      char *value = NULL;
-      if (!(ds_hmap_get_str_str(symt->hmap, keys[i], &value))) {
+      rest_test_token_t *token = NULL;
+      if (!(ds_hmap_get_str_ptr(symt->hmap, keys[i], (void **)&token))) {
          continue;
       }
+      const char *value = rest_test_token_value (token);
       fprintf(fout, "symbol-table [%s] [%s:%s]\n", symt->name, keys[i], value);
    }
 
@@ -98,38 +99,42 @@ void rest_test_symt_dump (rest_test_symt_t *symt, FILE *fout)
 }
 
 bool rest_test_symt_add (rest_test_symt_t *symt,
-                         const char *symbol, const char *value)
+                         const char *symbol, rest_test_token_t *token)
 {
    if (!symt)
       return false;
 
-   char *copy = ds_str_dup (value);
+   enum rest_test_token_type_t type = rest_test_token_type (token);
+   const char *value = rest_test_token_value (token);
+   const char *source = rest_test_token_source (token);
+   size_t line_no = rest_test_token_line_no (token);
+   rest_test_token_t *copy = rest_test_token_new (type, value, source, line_no);
    if (!copy)
       return false;
-   char *existing = NULL;
-   if ((ds_hmap_get_str_str (symt->hmap, symbol, &existing)))
-      free (existing);
+   rest_test_token_t *existing = NULL;
+   if ((ds_hmap_get_str_ptr (symt->hmap, symbol, (void **)&existing)))
+      rest_test_token_del (&existing);
 
-   return ds_hmap_set_str_str(symt->hmap, symbol, copy) != NULL;
+   return ds_hmap_set_str_ptr (symt->hmap, symbol, copy) != NULL;
 }
 
 void rest_test_symt_clear (rest_test_symt_t *symt, const char *symbol)
 {
-   char *value = NULL;
-   if ((ds_hmap_get_str_str(symt->hmap, symbol, &value))) {
-      ds_hmap_remove_str (symt->hmap, symbol);
-      free (value);
+   rest_test_token_t *value = NULL;
+   if ((ds_hmap_get_str_ptr(symt->hmap, symbol, (void **)&value))) {
+      ds_hmap_remove_str_ptr (symt->hmap, symbol);
+      rest_test_token_del (&value);
    }
 }
 
 
-const char *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol)
+const rest_test_token_t *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol)
 {
-   char *value = NULL;
+   rest_test_token_t *value = NULL;
    if (!symt)
       return NULL;
 
-   if (!(ds_hmap_get_str_str (symt->hmap, symbol, &value)))
+   if (!(ds_hmap_get_str_ptr (symt->hmap, symbol, (void **)&value)))
       return rest_test_symt_value (symt->parent, symbol);
 
    return value;

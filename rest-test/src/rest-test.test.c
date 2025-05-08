@@ -9,6 +9,7 @@
 
 #include "ds_str.h"
 
+#include "rest_test_token.h"
 #include "rest_test_symt.h"
 #include "rest_test.h"
 #include "rest_test_parse.h"
@@ -89,11 +90,13 @@ int test_symt (void)
    }
 
    for (size_t i=0; i<sizeof tests/sizeof tests[0]; i++) {
-      if (!(rest_test_symt_add (symt, tests[i].name, tests[i].value)) ||
-            !(rest_test_symt_add (child, tests[i].name, tests[i].value))) {
+      rest_test_token_t *token = rest_test_token_new (token_STRING, tests[i].value, "testfile", 0);
+      if (!(rest_test_symt_add (symt, tests[i].name, token) ||
+            !(rest_test_symt_add (child, tests[i].name, token)))) {
          ERRORF ("Failed to add [%s:%s]\n", tests[i].name, tests[i].value);
          errcount++;
       }
+      rest_test_token_del (&token);
    }
 
    rest_test_symt_clear (child, "name-one");
@@ -106,13 +109,13 @@ int test_symt (void)
    printf ("Parent: [%s]\n", rest_test_symt_name (rest_test_symt_parent (child)));
 
    for (size_t i=0; i<sizeof tests/sizeof tests[0]; i++) {
-      const char *value = rest_test_symt_value (child, tests[i].name);
+      const rest_test_token_t *value = rest_test_symt_value (child, tests[i].name);
       if (!value) {
          ERRORF ("Failed to add [%s:%s]\n", tests[i].name, tests[i].value);
          errcount++;
          continue;
       }
-      printf ("[%s:%s]\n", tests[i].name, value);
+      printf ("[%s:%s]\n", tests[i].name, rest_test_token_value (value));
    }
 
 cleanup:

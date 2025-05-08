@@ -48,7 +48,7 @@ extern "C" {
    // out-of-memory condition occurs), then false is returned. If the entry is added
    // then true is returned.
    bool rest_test_symt_add (rest_test_symt_t *symt,
-                            const char *symbol, const char *value);
+                            const char *symbol, rest_test_token_t *token);
 
    // Removes a value from the symbol table.
    void rest_test_symt_clear (rest_test_symt_t *symt, const char *symbol);
@@ -59,7 +59,7 @@ extern "C" {
    //
    // Returns the value of the symbol if the symbol exists, or NULL if the symbol
    // does not exist.
-   const char *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol);
+   const rest_test_token_t *rest_test_symt_value (rest_test_symt_t *symt, const char *symbol);
 
 #ifdef __cplusplus
 };
