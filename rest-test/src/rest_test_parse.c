@@ -213,6 +213,7 @@ if (current == NULL) {\
                CLEANUP ("Failed to allocate new test [%s:%zu]: %s\n",
                         source, line_no, pstrings[0]);
             }
+            rest_test_set_name (current, pstrings[0]);
             dispatch_code = true;
             break;
 
@@ -252,7 +253,6 @@ if (current == NULL) {\
             break;
 
          case directive_UNKNOWN:
-         default:
             CLEANUP ("Unhandled directive in [%s:%zu]: %s\n",
                      source, line_no, rest_test_token_value (token));
             break;

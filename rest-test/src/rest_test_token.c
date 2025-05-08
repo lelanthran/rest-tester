@@ -136,15 +136,16 @@ static char *read_directive (FILE *inf, size_t *line_no)
 static char *read_string (FILE *inf, size_t *line_no)
 {
    bool error = true;
-   int c = readchar (inf, line_no); // Swallow the first '"' character
+   int delim = readchar (inf, line_no); // Swallow the first '"' or '\'' character
    char *ret = ds_str_dup ("");
 
    if (!ret) {
       CLEANUP ("Failed to allocate initial string\n");
    }
 
+   int c;
    while ((c = readchar (inf, line_no)) != EOF) {
-      if (c == '"')
+      if (c == delim)
          break;
 
       if (c == '\\') {
@@ -158,7 +159,7 @@ static char *read_string (FILE *inf, size_t *line_no)
       }
    }
 
-   if (c != '"') {
+   if (c != delim) {
       CLEANUP ("Unterminated string\n");
    }
 
@@ -328,10 +329,20 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
          break;
       }
 
-      if (c == '"') {
-         value = NULL;
+      if (c == '\'') {
          type = token_STRING;
-         while (c == '"') {
+         if (!(value = read_string (inf, line_no))) {
+            CLEANUP ("[%s:%zu] Failed to read string\n", source, *line_no);
+         }
+         ERRORF ("Returning [%s]\n", value);
+         break;
+      }
+
+      if (c == '"' || c =='`') {
+         int delim = c;
+         value = NULL;
+         type = delim == '"' ? token_STRING : token_SHELLCMD;
+         while (c == delim) {
             char *tmp = read_string (inf, line_no);
             if (!tmp) {
                CLEANUP ("[%s:%zu] Failed to read string\n", source, *line_no);
