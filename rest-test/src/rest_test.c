@@ -771,13 +771,79 @@ const char *rest_test_rsp_header (rest_test_t *rt, const char *header)
    return value;
 }
 
+static bool next_reference (const char *src, size_t *start, size_t *end)
+{
+   if (!src)
+      return false;
+
+   char *tmp = strstr (src, "{{");
+   if (!tmp || (tmp != src && tmp[-1] == '\\'))
+      return false;
+
+   *start = tmp - src;
+   tmp = strstr (tmp, "}}");
+   if (!tmp)
+      return false;
+
+   *end = tmp - src;
+
+   return true;
+}
+
+static char *interpolate (const char *src, size_t old_start, size_t old_end, const char *new)
+{
+   size_t slen_new = strlen (new);
+   size_t slen = strlen (src) + slen_new;
+   char *ret = calloc (1, slen);
+   if (!ret)
+      return NULL;
+
+   memcpy (ret, src, old_start);
+   memcpy (&ret[old_start], new, slen_new);
+   memcpy (&ret[old_start + slen_new], &src[old_end + 2], strlen (&src[old_end+2]));
+
+   return ret;
+}
+
+static char *extract_varname (const char *src)
+{
+   if (!(strstr (src, "}}")))
+      return NULL;
+
+   size_t slen = strlen (src);
+
+   if (src[0] != '{' || src[1] != '{')
+      return NULL;
+
+   char *ret = malloc (slen); // No harm in overallocating
+   if (!ret) {
+      return NULL;
+   }
+   strcpy (ret, &src[2]);
+   char *end = strstr (ret, "}}");
+   if (!end) { // This should never happen
+      free (ret);
+      return NULL;
+   }
+
+   *end = 0;
+
+   return ret;
+}
 
 static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
 {
    const rest_test_token_t *target = NULL;
    const char *newvalue = NULL;
+
+   size_t startpos = 0, endpos = 0;
+
    if (!token)
       return true;
+
+   const char *source = rest_test_token_source (token);
+   size_t line_no = rest_test_token_line_no (token);
+   const char *value = rest_test_token_value (token);
 
    switch (rest_test_token_type (token)) {
       case token_NONE:
@@ -789,30 +855,42 @@ static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
 
       case token_SHELLCMD:
       case token_STRING:
-         // TODO: Perform interpolation
+         while ((next_reference (value = rest_test_token_value (token), &startpos, &endpos))) {
+            char *varname = extract_varname (&value[startpos]);
+            if (!varname) {
+               ERRORF ("[%s:%zu] Extraction failure of symbol name [%s] (possible OOM condition)\n",
+                        source, line_no, value);
+               return false;
+            }
+
+            const rest_test_token_t *newval = rest_test_symt_value (st, varname);
+            char *newstring = interpolate (value, startpos, endpos, rest_test_token_value (newval));
+            if (!(rest_test_token_set_value (token, newstring))) {
+               ERRORF ("[%s:%zu] Failed to interpolate variable [%s] with value [%s]\n",
+                      source, line_no, value, newstring);
+               free (newstring);
+               free (varname);
+               return false;
+            }
+            free (varname);
+            free (newstring);
+         }
          break;
 
       case token_SYMBOL:
-         // TODO: Perform substitution
          if (!(target = rest_test_symt_value (st, rest_test_token_value (token)))) {
             ERRORF ("[%s:%zu] Variable [%s] is not defined.\n",
-                  rest_test_token_source (token),
-                  rest_test_token_line_no (token),
-                  rest_test_token_value (token));
+                    source, line_no, value);
             return false;
          }
          if (!(newvalue = rest_test_token_value (target))) {
             ERRORF ("[%s:%zu] Internal error retrieving value for [%s] (possibly defined as NULL).\n",
-                  rest_test_token_source (token),
-                  rest_test_token_line_no (token),
-                  rest_test_token_value (token));
+                    source, line_no, value);
             return false;
          }
          if (!(rest_test_token_set_value (token, newvalue))) {
             ERRORF ("[%s:%zu] Failed to substitute value for variable [%s] (Possible OOM error).\n",
-                  rest_test_token_source (token),
-                  rest_test_token_line_no (token),
-                  rest_test_token_value (token));
+                    source, line_no, value);
             return false;
          }
 
@@ -826,7 +904,7 @@ static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
 bool rest_test_eval_req (rest_test_t *rt, rest_test_token_t **errtoken)
 {
    bool error = true;
-   TEST_RT_STRING(rt);
+   TEST_RT_BOOL(rt);
    rest_test_token_t *et = NULL;
 
    if (!(eval(rt->req.method, rt->st))) {

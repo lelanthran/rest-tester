@@ -1,6 +1,13 @@
 -I.
 -I./include
 -I../../include/x86_64-linux-gnu/
+-W
+-Wall
+-Wextra
+-Wdouble-promotion
+-Wconversion
+-Wno-sign-conversion
+
 -Drest_test_version='"0.1.2"'
 -DBUILD_TIMESTAMP='"201909162104"'
 
