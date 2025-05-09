@@ -1,3 +1,4 @@
+#define _POSIX_C_SOURCE 2
 #include <stdio.h>
 #include <stdlib.h>
 #include <ctype.h>
@@ -831,19 +832,157 @@ static char *extract_varname (const char *src)
    return ret;
 }
 
+static bool shellrun (const char *shellcmd, char **output, int *retcode)
+{
+   bool error = true;
+   FILE *cmdf = NULL;
+
+   fflush (stdout);
+   if (output) {
+      *output = NULL;
+   }
+
+
+   if (!(cmdf = popen (shellcmd, "re"))) {
+      ERRORF ("Failed to execute [%s]: %m\n", shellcmd);
+      goto cleanup;
+   }
+
+   int c = EOF;
+   while ((c = fgetc (cmdf)) != EOF) {
+      char tmp[2] = { (char)c, 0 };
+      if (output) {
+         if (!(ds_str_append (output, tmp, NULL))) {
+            ERRORF ("OOM error executing [%s]\n", shellcmd);
+            goto cleanup;
+         }
+      }
+   }
+
+   int pclose_retcode = -1;
+   error = false;
+cleanup:
+   if ((pclose_retcode = pclose (cmdf)) != 0)
+      error = true;
+
+   if (retcode)
+      *retcode = pclose_retcode;
+
+   if (error) {
+      if (output)
+         free (*output);
+   }
+
+   return !error;
+}
+
+static bool interpolate_string (rest_test_token_t *token, rest_test_symt_t *st);
+static bool token_exec (rest_test_token_t *token, rest_test_symt_t *st)
+{
+   const char *source = rest_test_token_source (token);
+   size_t line_no = rest_test_token_line_no (token);
+   const char *value = rest_test_token_value (token);
+
+   if (!(interpolate_string (token, st))) {
+      ERRORF ("[%s:%zu] String interpolation failure on value [%s]\n",
+            source, line_no, value);
+      return false;
+   }
+   char *shell_output = NULL;
+   int shell_retcode = -1;
+   if (!(shellrun (rest_test_token_value (token), &shell_output, &shell_retcode))) {
+      ERRORF ("[%s:%zu] Shell execution failure on [%s]: Process returned %i\n",
+            source, line_no, rest_test_token_value (token), shell_retcode);
+      free (shell_output);
+      return false;
+   }
+
+   if (shell_output) {
+      // Remove the last \n
+      char *tmp = strrchr (shell_output, '\n');
+      if (tmp) {
+         *tmp = 0;
+      }
+   } else {
+      if (!(shell_output = ds_str_dup (""))) {
+         ERRORF ("[%s:%zu] OOM failure duplicating empty string\n", source, line_no);
+         return false;
+      }
+   }
+
+   if (!(rest_test_token_set_value (token, shell_output))) {
+      ERRORF ("[%s:%zu]  Failed to set output of shell command to token "
+            "[token:%s] [output:%s]\n",
+            source, line_no, rest_test_token_value (token), shell_output);
+      free (shell_output);
+      return false;
+   }
+
+   free (shell_output);
+   return true;
+}
+
+static bool interpolate_string (rest_test_token_t *token, rest_test_symt_t *st)
+{
+   bool error = true;
+   size_t startpos = 0, endpos = 0;
+
+   const char *source = rest_test_token_source (token);
+   size_t line_no = rest_test_token_line_no (token);
+   const char *value = rest_test_token_value (token);
+
+   char *varname = NULL;
+   char *newstring = NULL;
+   rest_test_token_t *newval = NULL;
+
+   while ((next_reference (value = rest_test_token_value (token), &startpos, &endpos))) {
+      varname = extract_varname (&value[startpos]);
+      if (!varname) {
+         ERRORF ("[%s:%zu] Extraction failure of symbol name [%s] (possible OOM condition)\n",
+               source, line_no, value);
+         goto cleanup;
+      }
+
+      newval = rest_test_token_dup (rest_test_symt_value (st, varname));
+      if (!newval) {
+         ERRORF ("[%s:%zu] No symbol value found for [%s]\n", source, line_no, varname);
+         goto cleanup;
+      }
+
+      if ((rest_test_token_type (newval)) == token_SHELLCMD) {
+         if (!(token_exec (newval, st))) {
+            goto cleanup;
+         }
+      }
+      newstring = interpolate (value, startpos, endpos, rest_test_token_value (newval));
+      if (!(rest_test_token_set_value (token, newstring))) {
+         ERRORF ("[%s:%zu] Failed to interpolate variable [%s] with value [%s]\n",
+               source, line_no, value, newstring);
+         goto cleanup;
+      }
+      free (varname); varname = NULL;
+      free (newstring); newstring = NULL;
+      rest_test_token_del (&newval);
+   }
+
+   error = false;
+cleanup:
+   free (varname);
+   free (newstring);
+   rest_test_token_del (&newval);
+   return !error;
+}
+
 static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
 {
    const rest_test_token_t *target = NULL;
    const char *newvalue = NULL;
-
-   size_t startpos = 0, endpos = 0;
 
    if (!token)
       return true;
 
    const char *source = rest_test_token_source (token);
    size_t line_no = rest_test_token_line_no (token);
-   const char *value = rest_test_token_value (token);
 
    switch (rest_test_token_type (token)) {
       case token_NONE:
@@ -854,43 +993,32 @@ static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
          return true;
 
       case token_SHELLCMD:
-      case token_STRING:
-         while ((next_reference (value = rest_test_token_value (token), &startpos, &endpos))) {
-            char *varname = extract_varname (&value[startpos]);
-            if (!varname) {
-               ERRORF ("[%s:%zu] Extraction failure of symbol name [%s] (possible OOM condition)\n",
-                        source, line_no, value);
+         if (!(token_exec (token, st)))
                return false;
-            }
+         break;
 
-            const rest_test_token_t *newval = rest_test_symt_value (st, varname);
-            char *newstring = interpolate (value, startpos, endpos, rest_test_token_value (newval));
-            if (!(rest_test_token_set_value (token, newstring))) {
-               ERRORF ("[%s:%zu] Failed to interpolate variable [%s] with value [%s]\n",
-                      source, line_no, value, newstring);
-               free (newstring);
-               free (varname);
-               return false;
-            }
-            free (varname);
-            free (newstring);
+      case token_STRING:
+         if (!(interpolate_string (token, st))) {
+            ERRORF ("[%s:%zu] String interpolation failure on value [%s]\n",
+                    source, line_no, rest_test_token_value (token));
+            return false;
          }
          break;
 
       case token_SYMBOL:
          if (!(target = rest_test_symt_value (st, rest_test_token_value (token)))) {
             ERRORF ("[%s:%zu] Variable [%s] is not defined.\n",
-                    source, line_no, value);
+                    source, line_no, rest_test_token_value (token));
             return false;
          }
          if (!(newvalue = rest_test_token_value (target))) {
             ERRORF ("[%s:%zu] Internal error retrieving value for [%s] (possibly defined as NULL).\n",
-                    source, line_no, value);
+                    source, line_no, rest_test_token_value (token));
             return false;
          }
          if (!(rest_test_token_set_value (token, newvalue))) {
             ERRORF ("[%s:%zu] Failed to substitute value for variable [%s] (Possible OOM error).\n",
-                    source, line_no, value);
+                    source, line_no, rest_test_token_value (token));
             return false;
          }
 

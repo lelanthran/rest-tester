@@ -29,12 +29,14 @@ static const struct {
    enum rest_test_token_type_t type;
    const char *name;
 } types[] = {
-   { token_NONE,          "token_NONE"      },
-   { token_UNKNOWN,       "token_UNKNOWN"   },
-   { token_DIRECTIVE,     "token_DIRECTIVE" },
-   { token_STRING,        "token_STRING"    },
-   { token_SYMBOL,        "token_SYMBOL"    },
-   { token_INTEGER,       "token_INTEGER"   },
+   { token_NONE,          "token_NONE"       },
+   { token_UNKNOWN,       "token_UNKNOWN"    },
+   { token_DIRECTIVE,     "token_DIRECTIVE"  },
+   { token_STRING,        "token_STRING"     },
+   { token_SYMBOL,        "token_SYMBOL"     },
+   { token_INTEGER,       "token_INTEGER"    },
+   { token_ASSERT_END,    "token_ASSERT_END" },
+   { token_SHELLCMD,      "token_SHELLCMD"   },
 };
 static const size_t ntypes = sizeof types / sizeof types[0];
 
@@ -334,7 +336,7 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
          if (!(value = read_string (inf, line_no))) {
             CLEANUP ("[%s:%zu] Failed to read string\n", source, *line_no);
          }
-         ERRORF ("Returning [%s]\n", value);
+         // ERRORF ("Returning [%s:%s]\n", rest_test_token_type_string (type), value);
          break;
       }
 
@@ -360,7 +362,7 @@ rest_test_token_t *rest_test_token_next (FILE *inf,
             }
             unreadchar (c, inf, line_no);
          }
-         ERRORF ("Returning [%s]\n", value);
+         // ERRORF ("Returning [%s:%s]\n", rest_test_token_type_string (type), value);
          break;
       }
 
