@@ -771,11 +771,104 @@ const char *rest_test_rsp_header (rest_test_t *rt, const char *header)
    return value;
 }
 
+
+static bool eval (rest_test_token_t *token, rest_test_symt_t *st)
+{
+   const rest_test_token_t *target = NULL;
+   const char *newvalue = NULL;
+   if (!token)
+      return true;
+
+   switch (rest_test_token_type (token)) {
+      case token_NONE:
+      case token_UNKNOWN:
+      case token_DIRECTIVE:
+      case token_INTEGER:
+      case token_ASSERT_END:
+         return true;
+
+      case token_SHELLCMD:
+      case token_STRING:
+         // TODO: Perform interpolation
+         break;
+
+      case token_SYMBOL:
+         // TODO: Perform substitution
+         if (!(target = rest_test_symt_value (st, rest_test_token_value (token)))) {
+            ERRORF ("[%s:%zu] Variable [%s] is not defined.\n",
+                  rest_test_token_source (token),
+                  rest_test_token_line_no (token),
+                  rest_test_token_value (token));
+            return false;
+         }
+         if (!(newvalue = rest_test_token_value (target))) {
+            ERRORF ("[%s:%zu] Internal error retrieving value for [%s] (possibly defined as NULL).\n",
+                  rest_test_token_source (token),
+                  rest_test_token_line_no (token),
+                  rest_test_token_value (token));
+            return false;
+         }
+         if (!(rest_test_token_set_value (token, newvalue))) {
+            ERRORF ("[%s:%zu] Failed to substitute value for variable [%s] (Possible OOM error).\n",
+                  rest_test_token_source (token),
+                  rest_test_token_line_no (token),
+                  rest_test_token_value (token));
+            return false;
+         }
+
+
+         break;
+   }
+
+   return true;
+}
+
 bool rest_test_eval_req (rest_test_t *rt, rest_test_token_t **errtoken)
 {
+   bool error = true;
    TEST_RT_STRING(rt);
-   // TODO
-   return false;
+   rest_test_token_t *et = NULL;
+
+   if (!(eval(rt->req.method, rt->st))) {
+      et = rt->req.method;
+      CLEANUP ("[%s:%zu] Failed to perform evaluation on method [%s]\n",
+               rest_test_token_source (rt->req.method),
+               rest_test_token_line_no (rt->req.method),
+               rest_test_token_value (rt->req.method));
+   }
+
+   if (!(eval(rt->req.uri, rt->st))) {
+      et = rt->req.uri;
+      CLEANUP ("[%s:%zu] Failed to perform evaluation on uri [%s]\n",
+               rest_test_token_source (rt->req.uri),
+               rest_test_token_line_no (rt->req.uri),
+               rest_test_token_value (rt->req.uri));
+   }
+
+   if (!(eval(rt->req.http_version, rt->st))) {
+      et = rt->req.http_version;
+      CLEANUP ("[%s:%zu] Failed to perform evaluation on http_version [%s]\n",
+               rest_test_token_source (rt->req.http_version),
+               rest_test_token_line_no (rt->req.http_version),
+               rest_test_token_value (rt->req.http_version));
+   }
+
+   if (!(eval(rt->req.body, rt->st))) {
+      et = rt->req.body;
+      CLEANUP ("[%s:%zu] Failed to perform evaluation on body [%s]\n",
+               rest_test_token_source (rt->req.body),
+               rest_test_token_line_no (rt->req.body),
+               rest_test_token_value (rt->req.body));
+   }
+
+   error = false;
+cleanup:
+   if (errtoken) {
+      *errtoken = et;
+   }
+
+
+   return !error;
 }
 
 

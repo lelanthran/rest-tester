@@ -41,6 +41,8 @@ extern "C" {
    const char *rest_test_token_source (const rest_test_token_t *token);
    size_t rest_test_token_line_no (const rest_test_token_t *token);
 
+   bool rest_test_token_set_value (rest_test_token_t *token, const char *value);
+
 #ifdef __cplusplus
 };
 #endif

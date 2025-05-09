@@ -455,6 +455,21 @@ size_t rest_test_token_line_no (const rest_test_token_t *token)
    return token ? token->line_no : (size_t)-1;
 }
 
+bool rest_test_token_set_value (rest_test_token_t *token, const char *value)
+{
+   if (!token || !value)
+      return false;
+   char *tmp = ds_str_dup (value);
+   if (!tmp) {
+      ERRORF ("[%s:%zu] OOM error allocating new value [%s] for token [%s]\n",
+               token->source, token->line_no, value, token->value);
+      return false;
+   }
+   free (token->value);
+   token->value = tmp;
+   return true;
+}
+
 
 
 

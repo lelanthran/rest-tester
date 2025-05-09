@@ -73,7 +73,8 @@ extern "C" {
 
    // Evaluate all the request fields in the test, performing both interpolation and
    // substitution. The token that caused the error is returned in the `errtoken`
-   // parameter and the caller MUST NOT delete it.
+   // parameter and the caller MUST NOT delete it. When there are no errors this
+   // `errtoken` parameter should be ignored on return from the function.
    //
    // If the `errtoken` parameter is NULL, the token causing the error will not be
    // returned.
