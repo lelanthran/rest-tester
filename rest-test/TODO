@@ -1,18 +1,53 @@
+Curl
+----
+
+Add in curl support. I am considering downloading curl and making it part of the
+library (so that it is statically compiled in), but this has some serious downsides,
+namely that an update to curl will not update the statically linked curl.
+
+Maybe just link it normally.
+
+
+Symbol Table - Serializable
+---------------------------
+
+Add support for reading/writing symbol table chain to a file. This is more involved
+than it looks because symbol tables do not currently contain pointers to chidren.
+
+One option is to have the format consist of an array of symbol tables (sans
+duplicates), so that the caller can simply provide a list of symbols tables to
+serialise and the output is built in-memory (with duplicates being removed) and
+written after it is completely built in memory.
+
+When reading back the tables:
+1. We first read each table (keeping track of the parent name)
+2. After reading all tables, we go through them and assign the correct parent
+   pointer.
+
+A better option is to add support for children in a symbol table. This means that on
+creation the symt_new() function will update the parent's child-list, and on
+deletion will remove itself from the parent's child-list.
 
 
 
-Variable Substitution
----------------------
+Symbol Table - Symbol Search
+----------------------------
 
-Switch `rest_test_t` objects from using strings for each field storage
-using `rest_test_token_t *` objects: we need to know whether an object is a
-string or a symbol (in order to perform variable substitution). This has a
-large impact:
-1. Prior to `curl` being called, each symbol must be replaced with a value
-   from the symbol table.
-2. Prior to `curl` being called, each string must be checked for variable
-   interpolation. Due to how the parser works, we cannot support string
-   concatenation.
+When a search fails the searching function must try getting a value from the
+environment.
+
+
+
+
+Error Reporting
+---------------
+
+Writing all errors to stderr makes this unsuitable for a library. Maybe allocate a
+big chunk of memory at startup (say, 1MB) which is populated as a circular buffer
+with the errors. This lets the caller decide how to display the error messages.
+
+
+
 
 Assertions
 ----------
